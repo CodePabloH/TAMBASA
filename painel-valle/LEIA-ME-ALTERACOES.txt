@@ -1,0 +1,21 @@
+PAINEL DO VALLE - VISUAL BI (v3)
+
+COMO USAR: extraia o zip e abra index.html (igual ao painel anterior). Os dados salvos
+no navegador continuam os mesmos - nada de regra, importacao ou calculo foi alterado.
+
+O QUE MUDOU
+1. bi-valle.css (NOVO)  - visual unico do sistema: grafite + verde Do Valle, cartoes planos,
+   tabelas limpas, mesmo padrao da "Visao da Operacao". Os tokens (cores) ficam no topo do arquivo.
+2. bi-valle.js (NOVO)   - paineis de "Importar..." e "Nova..." ficam recolhidos; um clique no titulo abre.
+3. Menu (app.js, lista TABS) - agora por area, sem rolagem:
+     VISAO OPERACIONAL : Dashboard, Visao da Operacao, Acompanhamento de SAC
+     REDE DO VALLE     : Performance Geral, Ocorrencias, Indenizacao, Impacto Supervisao,
+                         Pendencias Abertas, Confirmacao de Filiais
+     SOMENTE TAMBASA   : Performance, Trocas, Boletos/Faturamento, Controle de Entregas,
+                         Entregas Previstas, Pacotes, Fechamento-RECEITA
+   Para mover uma tela de area, troque o campo "group" dela em TABS (app.js).
+4. Topo de cada tela mostra a etiqueta da area (REDE DO VALLE / SOMENTE TAMBASA / OPERACAO COMPLETA).
+5. Visual unico Do Valle (o botao "Visual Do Valle/Tambasa" saiu).
+6. Dashboard: cartoes em degrade viraram cartoes planos com faixa lateral colorida.
+7. index.html: carrega bi-valle.css / bi-valle.js e novo cabecalho; demais arquivos so tiveram cores ajustadas.
+Os relatorios exportados (Excel/PDF) mantem as cores originais.
