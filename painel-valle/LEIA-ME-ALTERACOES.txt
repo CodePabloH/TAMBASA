@@ -19,3 +19,68 @@ O QUE MUDOU
 6. Dashboard: cartoes em degrade viraram cartoes planos com faixa lateral colorida.
 7. index.html: carrega bi-valle.css / bi-valle.js e novo cabecalho; demais arquivos so tiveram cores ajustadas.
 Os relatorios exportados (Excel/PDF) mantem as cores originais.
+
+NOVO - Pacotes > sub-aba "Acompanhamento de Pacotes" (acompanhamento-pacotes.js / .css)
+- Aba Pacotes agora tem 2 sub-abas: "Mapa de Entrega" (tudo como era) e "Acompanhamento de Pacotes".
+- Importe a planilha do SSW (.sswweb/.csv). So entram CTRCs com CNPJ REMETENTE 17359233000935 e 17359233000188
+  (TEC E ARM MIGUEL BARTOLOMEU). Reimportar atualiza pelo CTRC/SUBCON (situacao em tempo real).
+- Pacotes e NFs vem de Entregas Previstas (numero do pacote); tambem da para adicionar pacote manual.
+- Prazo = data do envio + 6 dias (data e dias editaveis por pacote). Baixa = cod. ocorrencia 01 ou 69.
+  Demais codigos (inclusive 93) ficam pendentes e seguem o prazo: vencido / vence hoje / amanha / atencao.
+- Colunas: CTRC/SUBCON, Emissao, Remetente, Destinatario, Praca (3 letras), Cidade, Km, NF, Cod. ocorrencia,
+  Prev. entrega, Entrega realizada, Atraso, CTRC origem, Emissao origem, Divergencia de emissao, Ultimo romaneio, Placa.
+- Varios pacotes ao mesmo tempo, com filtros (pacote, situacao, praca, busca) e exportacao para Excel.
+
+ATUALIZACAO - Acompanhamento de Pacotes
+- Importe o mesmo PDF do Mapa de Entrega (varios de uma vez) ou puxe pacotes ja importados em Entregas Previstas.
+- Cada pacote tem botao "x/x finalizadas" (clique para ver as notas) e "Excluir pacote". Pacotes ficam salvos ate excluir.
+- Nova coluna: EMISSAO ULT ROMANEIO (tela e Excel).
+- Acompanhamento de Pacotes tambem le o PDF "ENTREGAS PREVISTAS - UNIDADE" (Pacote / Relacao, Nota Fiscal, Cliente...).
+  Data do envio = data no nome do arquivo (ex.: Tambasa_16-10-2026) ou o dia-mes da rota; pode ser editada.
+
+NOVO - Visao operacional > aba "SacFlow" (sacflow-core.js, sacflow.js, sacflow.css)
+- Dashboard de gestao do SAC alimentado por TEXTO estruturado exportado do SacFlow (aba Importar).
+- Abas: Visao Geral, Atendentes (tabela comparativa + painel individual A-G), SLA e Violacoes, Transferencias,
+  Avaliacoes, Evolucao, Atendimentos (detalhe por clique), Importar, Formulas e Metas.
+- Importar: colar texto ou carregar .txt/.csv; "Validar" mostra novos x ja existentes, duplicados, erros e avisos;
+  o texto pode ser corrigido na propria tela; cada importacao fica guardada (bruto) e pode ser editada/removida.
+  Use "Inserir modelo do formato" para ver as secoes (@ATENDENTE, @PERIODO, @RESUMO, @ATENDIMENTOS, @SLA,
+  @TRANSFERENCIAS, @AVALIACOES, @MENSAGENS, @OBSERVACOES).
+- Ausencia de dado = "nao informado" (nunca zero). Metas so existem se configuradas (Formulas e Metas).
+- Numeros dos cartoes sao clicaveis (abrem os registros que os compoem). Tabelas: busca, ordenacao e CSV.
+- Dados ficam no navegador (localStorage, chave valle_sacflow_v1). Nenhuma outra aba foi alterada.
+- Arquivos alterados: app.js (TABS, icone, secao, refresh), index.html (css/js). Pasta "Pasta Tambasa" nao foi mexida.
+
+SacFlow v1.1
+- Corrigido: ao digitar a data nos filtros (De/Ate) a tela recarregava com ano parcial (ex.: 01/10/0002) e zerava tudo.
+- Novo: importacao so com @RESUMO (indicadores consolidados por atendente) agora alimenta todo o painel:
+  cartoes da equipe (contagens somadas, % recalculado), tabela por atendente, rankings, tempos medios e painel individual.
+  Eventos por tipo de SLA = violacoes / (1 - cumprimento do tipo) (derivado, indicado na tela).
+
+SacFlow v1.2 - Quadro de desempenho de SLA por atendente (ranking, barra de SLA, celulas por tipo com cor relativa a equipe, linha EQUIPE).
+
+SacFlow v2.0 - REDESIGN VISUAL ESTILO BI (somente apresentacao; nenhum calculo/importacao/regra foi alterado)
+- sacflow.css reescrito do zero (mesmos tokens do bi-valle.css: grafite + verde Do Valle).
+- Visao Geral (dados @RESUMO): KPIs numa unica faixa; paineis "SLA por tipo" e "Violacoes por atendente";
+  tabela de desempenho limpa (ponto de status em vez de caixas coloridas); avisos longos viraram
+  icone "i" com tooltip; rodape "Fonte" discreto; "Conferencia dos numeros" recolhida.
+- Filtros Departamento/Canal/Status nao aparecem quando a importacao so tem @RESUMO (nao se aplicam).
+- Abas: Importar e Formulas e Metas ficam separadas, a direita (uso menos frequente).
+- Aba SLA e Violacoes: removidos os 2 rankings que repetiam a tabela.
+- Modo detalhado: trio de rankings saiu da Visao Geral (continua na aba Atendentes); tabela
+  "Indicadores registrados" ficou recolhida.
+- Arquivos alterados: sacflow.css, sacflow.js (so marcacao/layout), index.html (versao do cache ?v=2.0).
+- Original do v1.2 nao foi preservado dentro desta pasta; para voltar, use o zip anterior.
+
+SacFlow v3.0 - VISUAL BI (so apresentacao)
+- Visao Geral: gauge de cumprimento de SLA com marcador da meta; 4 cards de KPI; ranking de atendentes com
+  linha de meta (ou media da equipe se nao houver meta); aneis de SLA por tipo; tabela de desempenho.
+- Cards com sombra leve e barra de filtros em formato "slicer".
+- Arquivos: sacflow.css, sacflow.js, index.html (cache ?v=3.0).
+
+SacFlow v4.0 - logo + hero profissional (so apresentacao)
+- Novos arquivos: sacflow-logo.png e sacflow-icon.png (logo do SacFlow, fundo transparente).
+- Cabecalho da pagina SacFlow com a logo, titulo "Gestao do SAC", periodo dos dados e base importada.
+- Cumprimento de SLA: gauge com zonas (vermelho/amarelo/verde conforme a meta), ponteiro, marcador da meta,
+  chip "p.p. acima/abaixo da meta", melhor e menor resultado da equipe e barra dentro do prazo x violados.
+- Cards de KPI com icone. Cache: ?v=4.0.

@@ -537,6 +537,7 @@ const TABS = [
   {id:"dashboard", label:"Dashboard", icon:"dashboard", group:"operacao"},
   {id:"@vo", label:"Visão da Operação", icon:"vo", group:"operacao", action:"vo"},
   {id:"@sacs", label:"Acompanhamento de SAC", icon:"sac", group:"operacao", action:"sacs"},
+  {id:"sacflow", label:"SacFlow", icon:"sacflow", group:"operacao"},
 
   {id:"performance-geral", label:"Performance Geral", icon:"performance-geral", group:"valle"},
   {id:"ocorrencias", label:"Ocorrências", icon:"ocorrencias", group:"valle"},
@@ -570,6 +571,7 @@ const NAV_ICONS = {
   entregas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7.5" width="11" height="9" rx="1"/><path d="M13.5 10.5h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/></svg>',
   vo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1.6"/><path d="M8 20h8"/><path d="M12 16v4"/><path d="M7 12l3-3 2.5 2 4-4.5"/></svg>',
   previstas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="1.8"/><path d="M3.5 10h17"/><path d="M8 3v4"/><path d="M16 3v4"/><path d="M8.5 14.5h3"/></svg>',
+  sacflow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h16v10H10l-4.5 3.5v-3.5H4z"/><path d="M8 10.5l2.5-2.5 2 2 3.5-3.5"/></svg>',
   sac: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c.6-3.6 3.4-5.6 7-5.6s6.4 2 7 5.6"/></svg>',
   indenizacao: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 5 6v5.5c0 4.2 2.9 7.3 7 9 4.1-1.7 7-4.8 7-9V6z"/><path d="M12 8.5v6"/><path d="M14.2 10.2c0-.9-1-1.5-2.2-1.5s-2.2.6-2.2 1.4c0 2 4.4 1 4.4 3.1 0 .8-1 1.5-2.2 1.5s-2.2-.6-2.2-1.5"/></svg>'
 };
@@ -649,6 +651,8 @@ function switchTab(tabId){
     document.getElementById("sec-dashboard").innerHTML = dashboardHTML();
     dashAfterRender();
   }
+  if(tabId === "pacotes" && window.acompPacotesRefresh) window.acompPacotesRefresh();   // pega pacotes novos de Entregas Previstas
+  if(tabId === "sacflow" && window.sacflowRefresh) window.sacflowRefresh();   // recarrega os dados do SacFlow e redesenha
   if(tabId === "impacto-supervisao" && window.impactoSupervisaoRefresh) window.impactoSupervisaoRefresh();   // pega Focais/dados atualizados
   closeMobileSidebar();
   window.scrollTo(0,0);
@@ -683,6 +687,7 @@ function renderApp(){
   const main = document.getElementById("mainContent");
   main.innerHTML = `
     <section class="section active" id="sec-dashboard">${dashboardHTML()}</section>
+    <section class="section" id="sec-sacflow">${window.sacflowHTML ? window.sacflowHTML() : ""}</section>
     <section class="section" id="sec-impacto-supervisao">${window.impactoSupervisaoHTML ? window.impactoSupervisaoHTML() : ""}</section>
     <section class="section" id="sec-trocas">${trocasHTML()}</section>
     <section class="section" id="sec-boletos">${boletosHTML()}</section>
@@ -702,6 +707,7 @@ function renderApp(){
   attachPendenciasEvents();
   attachConfirmacaoEvents();
   attachPacotesEvents();
+  if(window.attachAcompPacotes) window.attachAcompPacotes();
   attachPrevistasEvents();
   attachPerformanceEvents();
   attachPerformanceGeralEvents();
@@ -710,6 +716,7 @@ function renderApp(){
   attachOcorrenciasEvents();
   if(window.attachIndenizacaoEvents) window.attachIndenizacaoEvents();
   if(window.attachImpactoSupervisao) window.attachImpactoSupervisao();
+  if(window.attachSacflow) window.attachSacflow();
   dashAfterRender();
 }
 
@@ -1797,7 +1804,13 @@ function attachFocaisConfigEvents(){
 /* ================= PACOTES (importação de Mapa de Entrega) ================= */
 function pacotesHTML(){
   return `
-    <h2 class="section-title">Pacotes — Mapa de Entrega</h2>
+    <h2 class="section-title">Pacotes</h2>
+    <div class="pg-subtabs" id="pacSubtabs">
+      <button type="button" class="pg-subtab-btn active" data-pac-sub="mapa">Mapa de Entrega</button>
+      <button type="button" class="pg-subtab-btn" data-pac-sub="acomp">Acompanhamento de Pacotes</button>
+    </div>
+    <div class="pg-subview active" id="pacSub-mapa">
+    <h3 class="section-title" style="font-size:16px;">Mapa de Entrega</h3>
     <p class="section-desc">Importe o PDF do Mapa de Entrega. O sistema identifica cada pacote (número da Relação) e a data da rota, destaca automaticamente os pacotes de <strong>SAC - Troca / Falta</strong> e avisa quando aparecer um cliente ou CNPJ que você cadastrou para alerta. Pacotes de troca são enviados automaticamente para a aba <strong>Trocas</strong>, com NF, cliente, CNPJ e cidade já preenchidos — só falta você indicar a filial.</p>
 
     <div class="panel">
@@ -1855,6 +1868,8 @@ function pacotesHTML(){
       </div>
       <div class="table-wrap" id="pacotesTableWrap"></div>
     </div>
+    </div>
+    <div class="pg-subview" id="pacSub-acomp">${window.acompPacotesHTML ? window.acompPacotesHTML() : ""}</div>
   `;
 }
 
