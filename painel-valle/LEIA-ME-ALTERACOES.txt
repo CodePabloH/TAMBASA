@@ -1,0 +1,165 @@
+PAINEL DO VALLE - VISUAL BI (v3)
+
+COMO USAR: extraia o zip e abra index.html (igual ao painel anterior). Os dados salvos
+no navegador continuam os mesmos - nada de regra, importacao ou calculo foi alterado.
+
+O QUE MUDOU
+1. bi-valle.css (NOVO)  - visual unico do sistema: grafite + verde Do Valle, cartoes planos,
+   tabelas limpas, mesmo padrao da "Visao da Operacao". Os tokens (cores) ficam no topo do arquivo.
+2. bi-valle.js (NOVO)   - paineis de "Importar..." e "Nova..." ficam recolhidos; um clique no titulo abre.
+3. Menu (app.js, lista TABS) - agora por area, sem rolagem:
+     VISAO OPERACIONAL : Dashboard, Visao da Operacao, Acompanhamento de SAC
+     REDE DO VALLE     : Performance Geral, Ocorrencias, Indenizacao, Impacto Supervisao,
+                         Pendencias Abertas, Confirmacao de Filiais
+     SOMENTE TAMBASA   : Performance, Trocas, Boletos/Faturamento, Controle de Entregas,
+                         Entregas Previstas, Pacotes, Fechamento-RECEITA
+   Para mover uma tela de area, troque o campo "group" dela em TABS (app.js).
+4. Topo de cada tela mostra a etiqueta da area (REDE DO VALLE / SOMENTE TAMBASA / OPERACAO COMPLETA).
+5. Visual unico Do Valle (o botao "Visual Do Valle/Tambasa" saiu).
+6. Dashboard: cartoes em degrade viraram cartoes planos com faixa lateral colorida.
+7. index.html: carrega bi-valle.css / bi-valle.js e novo cabecalho; demais arquivos so tiveram cores ajustadas.
+Os relatorios exportados (Excel/PDF) mantem as cores originais.
+
+NOVO - Pacotes > sub-aba "Acompanhamento de Pacotes" (acompanhamento-pacotes.js / .css)
+- Aba Pacotes agora tem 2 sub-abas: "Mapa de Entrega" (tudo como era) e "Acompanhamento de Pacotes".
+- Importe a planilha do SSW (.sswweb/.csv). So entram CTRCs com CNPJ REMETENTE 17359233000935 e 17359233000188
+  (TEC E ARM MIGUEL BARTOLOMEU). Reimportar atualiza pelo CTRC/SUBCON (situacao em tempo real).
+- Pacotes e NFs vem de Entregas Previstas (numero do pacote); tambem da para adicionar pacote manual.
+- Prazo = data do envio + 6 dias (data e dias editaveis por pacote). Baixa = cod. ocorrencia 01 ou 69.
+  Demais codigos (inclusive 93) ficam pendentes e seguem o prazo: vencido / vence hoje / amanha / atencao.
+- Colunas: CTRC/SUBCON, Emissao, Remetente, Destinatario, Praca (3 letras), Cidade, Km, NF, Cod. ocorrencia,
+  Prev. entrega, Entrega realizada, Atraso, CTRC origem, Emissao origem, Divergencia de emissao, Ultimo romaneio, Placa.
+- Varios pacotes ao mesmo tempo, com filtros (pacote, situacao, praca, busca) e exportacao para Excel.
+
+ATUALIZACAO - Acompanhamento de Pacotes
+- Importe o mesmo PDF do Mapa de Entrega (varios de uma vez) ou puxe pacotes ja importados em Entregas Previstas.
+- Cada pacote tem botao "x/x finalizadas" (clique para ver as notas) e "Excluir pacote". Pacotes ficam salvos ate excluir.
+- Nova coluna: EMISSAO ULT ROMANEIO (tela e Excel).
+- Acompanhamento de Pacotes tambem le o PDF "ENTREGAS PREVISTAS - UNIDADE" (Pacote / Relacao, Nota Fiscal, Cliente...).
+  Data do envio = data no nome do arquivo (ex.: Tambasa_16-10-2026) ou o dia-mes da rota; pode ser editada.
+
+NOVO - Visao operacional > aba "SacFlow" (sacflow-core.js, sacflow.js, sacflow.css)
+- Dashboard de gestao do SAC alimentado por TEXTO estruturado exportado do SacFlow (aba Importar).
+- Abas: Visao Geral, Atendentes (tabela comparativa + painel individual A-G), SLA e Violacoes, Transferencias,
+  Avaliacoes, Evolucao, Atendimentos (detalhe por clique), Importar, Formulas e Metas.
+- Importar: colar texto ou carregar .txt/.csv; "Validar" mostra novos x ja existentes, duplicados, erros e avisos;
+  o texto pode ser corrigido na propria tela; cada importacao fica guardada (bruto) e pode ser editada/removida.
+  Use "Inserir modelo do formato" para ver as secoes (@ATENDENTE, @PERIODO, @RESUMO, @ATENDIMENTOS, @SLA,
+  @TRANSFERENCIAS, @AVALIACOES, @MENSAGENS, @OBSERVACOES).
+- Ausencia de dado = "nao informado" (nunca zero). Metas so existem se configuradas (Formulas e Metas).
+- Numeros dos cartoes sao clicaveis (abrem os registros que os compoem). Tabelas: busca, ordenacao e CSV.
+- Dados ficam no navegador (localStorage, chave valle_sacflow_v1). Nenhuma outra aba foi alterada.
+- Arquivos alterados: app.js (TABS, icone, secao, refresh), index.html (css/js). Pasta "Pasta Tambasa" nao foi mexida.
+
+SacFlow v1.1
+- Corrigido: ao digitar a data nos filtros (De/Ate) a tela recarregava com ano parcial (ex.: 01/10/0002) e zerava tudo.
+- Novo: importacao so com @RESUMO (indicadores consolidados por atendente) agora alimenta todo o painel:
+  cartoes da equipe (contagens somadas, % recalculado), tabela por atendente, rankings, tempos medios e painel individual.
+  Eventos por tipo de SLA = violacoes / (1 - cumprimento do tipo) (derivado, indicado na tela).
+
+SacFlow v1.2 - Quadro de desempenho de SLA por atendente (ranking, barra de SLA, celulas por tipo com cor relativa a equipe, linha EQUIPE).
+
+SacFlow v2.0 - REDESIGN VISUAL ESTILO BI (somente apresentacao; nenhum calculo/importacao/regra foi alterado)
+- sacflow.css reescrito do zero (mesmos tokens do bi-valle.css: grafite + verde Do Valle).
+- Visao Geral (dados @RESUMO): KPIs numa unica faixa; paineis "SLA por tipo" e "Violacoes por atendente";
+  tabela de desempenho limpa (ponto de status em vez de caixas coloridas); avisos longos viraram
+  icone "i" com tooltip; rodape "Fonte" discreto; "Conferencia dos numeros" recolhida.
+- Filtros Departamento/Canal/Status nao aparecem quando a importacao so tem @RESUMO (nao se aplicam).
+- Abas: Importar e Formulas e Metas ficam separadas, a direita (uso menos frequente).
+- Aba SLA e Violacoes: removidos os 2 rankings que repetiam a tabela.
+- Modo detalhado: trio de rankings saiu da Visao Geral (continua na aba Atendentes); tabela
+  "Indicadores registrados" ficou recolhida.
+- Arquivos alterados: sacflow.css, sacflow.js (so marcacao/layout), index.html (versao do cache ?v=2.0).
+- Original do v1.2 nao foi preservado dentro desta pasta; para voltar, use o zip anterior.
+
+SacFlow v3.0 - VISUAL BI (so apresentacao)
+- Visao Geral: gauge de cumprimento de SLA com marcador da meta; 4 cards de KPI; ranking de atendentes com
+  linha de meta (ou media da equipe se nao houver meta); aneis de SLA por tipo; tabela de desempenho.
+- Cards com sombra leve e barra de filtros em formato "slicer".
+- Arquivos: sacflow.css, sacflow.js, index.html (cache ?v=3.0).
+
+SacFlow v4.0 - logo + hero profissional (so apresentacao)
+- Novos arquivos: sacflow-logo.png e sacflow-icon.png (logo do SacFlow, fundo transparente).
+- Cabecalho da pagina SacFlow com a logo, titulo "Gestao do SAC", periodo dos dados e base importada.
+- Cumprimento de SLA: gauge com zonas (vermelho/amarelo/verde conforme a meta), ponteiro, marcador da meta,
+  chip "p.p. acima/abaixo da meta", melhor e menor resultado da equipe e barra dentro do prazo x violados.
+- Cards de KPI com icone. Cache: ?v=4.0.
+
+SacFlow v4.1 - correcao: atendente so com @RESUMO sumia da visualizacao (so apresentacao; nenhum calculo/importacao alterado)
+- Problema: quando a importacao misturava atendentes com lista detalhada (@ATENDIMENTOS/@SLA) e atendentes com
+  apenas @RESUMO, os cartoes, rankings e a aba SLA mostravam so os detalhados. Quem veio so com @RESUMO aparecia
+  no filtro, mas seus numeros (SLA, violacoes, tempos) nao apareciam em nenhum grafico.
+- Agora: abaixo da visao detalhada aparece o bloco "Indicadores consolidados (@RESUMO)" (Visao Geral, Atendentes,
+  SLA e Violacoes e Transferencias), com aviso de que esses numeros nao entram nos cartoes de cima.
+  Filtrar ou clicar num atendente so com @RESUMO abre a visao consolidada dele.
+- Arquivos: sacflow.js, sacflow.css, index.html (cache ?v=4.1). Backup do anterior: sacflow.js.orig nao e este;
+  o v4.0 original foi guardado como sacflow.js.v40.
+
+SacFlow v4.2 - Modelo 2 na aba Importar
+- Novo botao "Inserir Modelo 2 (indicadores @RESUMO)" ao lado do Modelo 1, e um bloco "Modelo 2" visivel na propria
+  pagina (em "Como montar o texto") com o texto pronto e botao para inserir na caixa de importacao.
+- O Modelo 2 usa os nomes de indicador reconhecidos pelo painel (SLA eventos, Violacoes SLA, Atendimentos com registro
+  de SLA, Primeira resposta..., Tempo resposta..., Resolucao..., Avaliacao media etc.). Tempos em segundos.
+- Corrigido: o selo do medidor dizia "Meta nao configurada" mesmo com meta salva (quando o cumprimento estava vazio).
+  Agora mostra "Meta X% - cumprimento nao informado".
+- Arquivos: sacflow.js, sacflow.css, index.html (cache ?v=4.2).
+
+PERFORMANCE (Somente Tambasa) - ajustes
+- Colunas agora MANTEM a largura que voce arrastar (antes as outras esticavam para preencher). O painel se ajusta ao tamanho da tabela; em "Tela cheia" ela ocupa a tela toda.
+- Botoes A- / A+ na barra da tabela: aumentam/diminuem os numeros (fica salvo). Padrao agora 15px (antes 13px).
+- Larguras padrao das colunas aumentadas. "Larguras" restaura o padrao.
+- Coluna lateral ganhou 3 mini-graficos abaixo dos cards: Meta de SLA (mapa de unidades por cor), Carteira em aberto e Pontos de atencao. (funcao performanceSideWidgetsHTML no app.js; estilos no fim do bi-valle.css)
+
+ACOMPANHAMENTO DE PACOTES - correcao da data de envio
+- Antes: a tela era redesenhada a cada segmento digitado na data, o campo perdia o foco e a data ficava diferente da digitada.
+  Agora a data so e gravada quando esta completa e valida (ano 2000-2100), "Baixar ate" atualiza na hora, e a tabela
+  completa atualiza ao sair do campo ou apertar Enter.
+- Data corrigida a mao fica protegida: importar PDF / "puxar de Entregas Previstas" nao sobrescreve mais (campo envioManual).
+
+ACOMPANHAMENTO DE PACOTES - visual mantido como era (a redesenhada foi desfeita); permanece so a correcao da data de envio.
+  Organizacao (mesmo formato): cabecalhos alinhados com os dados; "Excluir pacote" e "x/x finalizadas" alinhados em coluna; numero de "A baixar" + etiquetas
+  (venc./urg.) alinhados; NF das linhas "Nao consta na planilha" agora cai na coluna NF (antes ia para Cod. ocorrencia); nomes longos em 1 linha com "..."
+  (completo ao passar o mouse); cabecalho e 1a coluna fixos ao rolar; corrigido .ap-table{min-width:1500px} vindo do alerta-pdf.css.
+
+NOVO - Visao operacional > aba "Comparacao SacFlow" (sacflow-comparacao.js / .css)
+- Mesmo molde do "Impacto Supervisao", mas para o Relatorio de SLA do SacFlow: voce informa a DATA DE ENTRADA e quantos
+  MESES ANTES / DEPOIS, e o painel compara os dois periodos. Fica no menu logo abaixo de "SacFlow".
+- Aba INDEPENDENTE: guarda os proprios dados (chave valle_sacflow_comparacao_v1), nao le nem altera a aba SacFlow
+  nem qualquer outra tela. Relatorio Excel proprio ("Exportar relatorio Excel": Resumo, SLA por mes, Por atendente).
+- Sub-abas: Periodo e Importacao | Visao Geral | SLA por tipo | Por atendente | Corrigir dados do mes.
+- Importacao (1 relatorio por mes): cole a tabela "Performance da equipe" do Relatorio de SLA (ou um .txt/.csv dela).
+  O PDF do SacFlow e uma IMAGEM (sem texto), por isso o painel nao consegue le-lo: copie a tabela da tela do SacFlow,
+  ou digite em "Corrigir dados do mes". "Inserir exemplo do formato" mostra como deve ficar (e e o relatorio de 01-20/09/2026).
+  O periodo vem do texto ("Periodo: 01/09/2026 a 20/09/2026") ou do nome do arquivo (relatorio_sla_010926_200926).
+  Mes que nao cobre o mes inteiro aparece como PARCIAL (as taxas valem; os volumes "por mes" ficam menores).
+- Calculos: eventos = TPR + TRS + TR; acertos = soma dos acertos; violacoes = eventos - acertos;
+  taxa = acertos / eventos (confere com o PDF: 2.557 eventos, 938 violacoes, 63,32%).
+  Taxa de um periodo soma as contagens dos meses (nao faz media de percentuais).
+- Por atendente: ligados pelo nome (sem diferenciar maiusculas, acentos e ponto final). "poucos dados" = menos de 20 eventos.
+- Tempo medio (TPR/TRS/TR) e "Atendimentos com SLA" sao opcionais, digitados a mao em "Corrigir dados do mes".
+- Arquivos: sacflow-comparacao.js/.css (novos); app.js (TABS, section, refresh, attach); index.html (css/js).
+  Para mudar a aba de grupo no menu, troque o campo "group" dela em TABS (app.js).
+
+Comparacao SacFlow - importacao direta do PDF (v1.1)
+- "Arquivo" aceita o PDF do SacFlow (relatorio_sla_011026_201026.pdf). O PDF e uma imagem; o painel desenha a pagina,
+  acha a tabela "Performance da equipe" e le os numeros por reconhecimento de texto (OCR, tesseract.js - baixado da internet
+  na hora; 1o uso leva 20 s a 1 min). Periodo = datas do nome do arquivo (ddmmaa_ddmmaa).
+- Cada celula e CONFERIDA pela conta: acertos / total tem que dar o percentual escrito no relatorio. Celula mal lida
+  e refeita pela conta da linha; o que nao fecha fica marcado "conferir" em "Corrigir dados do mes" (some ao editar a linha).
+- Nomes tambem vem do OCR: sao ajustados aos nomes ja conhecidos de outros meses (letra trocada). Confira a grafia.
+- Testado com os PDFs de 01-20/09/2026 (12 atendentes, 2.557 eventos, 63,32%) e 01-20/10/2026 (11 atendentes, 3.677 eventos, 81,34%).
+- Se a internet bloquear o download do OCR, a tela avisa; colar a tabela ou digitar continuam funcionando.
+
+NOVO - Rede do Valle > aba "Performance Teste" (performance-teste-core.js, performance-teste.js, performance-teste.css)
+- Quadro de performance por UNIDADE RECEPTORA, pela PREVISAO DE ENTREGA do mes de competencia. Layout espelhado da aba Performance.
+- Importar: solte de uma vez a planilha de CTRCs (CSV do SSW por previsao de entrega) e varios relatorios 012 (um por dia); o tipo e reconhecido sozinho.
+- Baixa = ocorrencia 01, 69 e 46 (46 so na unidade GNA). Atraso = coluna "Quantidade de Dias de Atraso" (dias uteis do SSW).
+- Atraso com asterisco no 012 = culpa do CLIENTE; sem asterisco = TRANSPORTADORA. Nao baixado: Aberto atrasado / Aberto no prazo.
+- Performance = (No prazo + Atraso cliente) / Entregue. Clique numa unidade para ver os documentos em atraso.
+- Base fica no IndexedDB do navegador; 012 e preferencias no localStorage. Nenhuma outra aba foi alterada
+  (app.js: so a entrada em TABS, a secao e o attach; index.html: css/js novos).
+
+Performance Teste v2 - importacao por SISTEMA (VAL = Do Valle, RVA = Real Vale)
+- Aba de importacao escolhe o sistema; base e 012 ficam separados por sistema.
+- Visao Geral / Do Valle / Real Vale (cartoes com a performance de cada um). Na visao Geral cada linha mostra a etiqueta VAL/RVA.
+- Filtros na tabela: unidade, focal, performance, atrasos, periodo de previsao. Dados da versao anterior viram VAL automaticamente.

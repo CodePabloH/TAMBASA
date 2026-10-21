@@ -1,0 +1,71 @@
+/* Acompanhamento de Pacotes (sub-aba de Pacotes) */
+.ap-hint{ margin:0 18px 8px; color:var(--muted); font-size:13px; }
+.ap-table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+.ap-table th{ white-space:nowrap; }
+.ap-table td.c, .ap-table th.c{ text-align:center; }
+.ap-table .nowrap{ white-space:nowrap; }
+.ap-table tr.ap-sel{ outline:2px solid var(--navy-4); outline-offset:-2px; }
+.ap-count{ padding:6px 4px 10px; color:var(--muted); font-size:12.5px; }
+.ap-pill{ display:inline-block; padding:2px 9px; border-radius:10px; font-size:11.5px; font-weight:700; white-space:nowrap; }
+.ap-red{ background:var(--red-bg); color:var(--red); }
+.ap-amber{ background:var(--amber-bg); color:var(--amber); }
+.ap-green{ background:var(--green-bg); color:var(--green); }
+.ap-gray{ background:#eceee9; color:var(--muted); }
+.ap-t-green{ color:var(--green); font-weight:700; }
+.ap-tag{ background:#eceee9; color:var(--muted); border-radius:6px; padding:1px 6px; font-size:10.5px; }
+.ap-bar{ height:8px; background:#e3e8df; border-radius:5px; overflow:hidden; margin-bottom:3px; }
+.ap-bar i{ display:block; height:100%; background:var(--navy-4); }
+.ap-cod{ display:inline-block; min-width:28px; text-align:center; padding:1px 7px; border-radius:6px; font-weight:700; font-size:12px; }
+.ap-cod-ok{ background:var(--green-bg); color:var(--green); }
+.ap-cod-warn{ background:var(--amber-bg); color:var(--amber); }
+.ap-cod-cinza{ background:#eceee9; color:var(--muted); }
+.ap-ocor{ display:block; color:var(--muted); font-size:10.5px; max-width:210px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ap-table tbody tr.ap-row-red{ background:#fff5f4; }
+.ap-table tbody tr.ap-row-amber{ background:#fffaf0; }
+.ap-table tbody tr.ap-row-green td:first-child{ border-left:3px solid var(--green); }
+.ap-table tbody tr.ap-row-red td:first-child{ border-left:3px solid var(--red); }
+.ap-table tbody tr.ap-row-amber td:first-child{ border-left:3px solid var(--amber); }
+.ap-fin{ border:1px solid var(--navy-4); background:#fff; color:var(--navy-3); border-radius:8px; padding:5px 11px; font-weight:700; font-size:12px; cursor:pointer; }
+.ap-fin:hover{ background:var(--green-bg); }
+.ap-fin-ok{ background:var(--green); border-color:var(--green); color:#fff; }
+.ap-fin-ok:hover{ background:var(--green); opacity:.9; }
+.ap-manual{ margin:6px 18px 10px; font-size:13px; }
+.ap-manual summary{ cursor:pointer; color:var(--muted); }
+
+/* ===== Organização (mesmo formato, só alinhamento) ===== */
+/* alerta-pdf.css também usa .ap-table com min-width:1500px: anulado só dentro desta tela */
+#apRoot .ap-table{ min-width:0; }
+
+/* cabeçalhos alinhados com os dados */
+#apRoot .ap-table thead th{ text-align:left; vertical-align:middle; }
+#apRoot .ap-table thead th.c{ text-align:center; }
+#apRoot .ap-notas thead th:nth-child(7), #apRoot .ap-notas thead th:nth-child(9),
+#apRoot .ap-notas thead th:nth-child(14), #apRoot .ap-notas thead th:nth-child(17){ text-align:center; }
+
+/* "A baixar": número + etiquetas sempre alinhados */
+#apRoot .ap-abx{ display:inline-flex; align-items:center; justify-content:center; gap:6px; white-space:nowrap; }
+#apRoot .ap-abx b{ min-width:16px; text-align:right; font-weight:700; }
+
+/* botões de ação com largura fixa: "Excluir pacote" fica alinhado em coluna */
+#apRoot .ap-acts{ text-align:right; }
+#apRoot .ap-acts .ap-fin{ display:inline-block; min-width:128px; text-align:center; }
+#apRoot .ap-acts .link-btn{ display:inline-block; min-width:92px; text-align:left; margin-left:12px; }
+
+/* cabeçalho fixo + 1ª coluna fixa ao rolar a tabela de notas */
+#apRoot #apDetalhe{ max-height:75vh; overflow:auto; }
+#apRoot .ap-notas thead th{ position:sticky; top:0; z-index:3; }
+#apRoot .ap-notas thead th:first-child, #apRoot .ap-notas tbody td:first-child{ position:sticky; left:0; }
+#apRoot .ap-notas thead th:first-child{ z-index:4; }
+#apRoot .ap-notas tbody td:first-child{ z-index:1; background:#fff; }
+#apRoot .ap-notas tbody tr:nth-child(even) td:first-child{ background:#fafcf8; }
+#apRoot .ap-notas tbody tr.ap-row-red td:first-child{ background:#fff5f4; }
+#apRoot .ap-notas tbody tr.ap-row-amber td:first-child{ background:#fffaf0; }
+#apRoot .ap-notas tbody tr:hover td:first-child{ background:#f4f8f0; }
+
+/* nomes longos: 1 linha só, com "…" (o nome completo aparece ao passar o mouse) — linhas sempre do mesmo tamanho */
+#apRoot .ap-notas td:nth-child(5){ max-width:170px; }
+#apRoot .ap-notas td:nth-child(6){ max-width:230px; }
+#apRoot .ap-notas td:nth-child(8){ max-width:150px; }
+#apRoot .ap-notas td:nth-child(5), #apRoot .ap-notas td:nth-child(6), #apRoot .ap-notas td:nth-child(8){ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#apRoot .ap-nodata{ color:var(--muted); font-style:italic; }
+#apRoot .ap-count{ position:sticky; left:0; }
