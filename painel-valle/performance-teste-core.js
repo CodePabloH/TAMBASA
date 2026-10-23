@@ -11,8 +11,14 @@
 
    REGRAS DE CÁLCULO (ver calcular())
    - Baixa (entrega feita): Código da Última Ocorrência 01 ou 69; o 46 só vale como baixa na unidade GNA.
-   - Atraso: pela coluna "Quantidade de Dias de Atraso" (dias ÚTEIS, igual ao SSW). Se essa coluna vier vazia,
-     usa a diferença entre Data da Entrega Realizada e Previsão de Entrega.
+   - Atraso: SEMPRE pela comparação de datas: Data da Entrega Realizada > Previsão de Entrega = atraso
+     (a coluna "Quantidade de Dias de Atraso" do SSW NÃO decide mais: ela é em dias úteis e deixava escapar
+     baixas feitas no sábado/domingo/feriado). Sem data de entrega, só usa os dias do SSW como apoio.
+   - Responsável pelo atraso (a BASE diz SE atrasou; o 012 diz DE QUEM):
+       CTRC com * no 012 ........ Cliente
+       CTRC sem * no 012 ........ Transportadora
+       CTRC atrasado na base e AUSENTE do 012 ... "A definir" (a pessoa edita na tela; vale a edição manual)
+     Se a base nova não mostra mais atraso, o documento deixa de contar, mesmo que o 012 antigo o cite.
    - Baixa no prazo ........ entregue sem atraso
    - Baixa atrasada ........ "Fora do prazo" → Cliente (CTRC com * no 012) ou Transportadora (sem *)
    - Não baixado + atrasado  → Aberto atrasado
@@ -80,14 +86,14 @@
       }
     }
 
-    const un = {};              // sigla -> {np, ac, at, cli:[], resumo:{np,ac,at}|null}
+    const un = {};              // sigla -> {np, ac, at, cli:[], tr:[], resumo:{np,ac,at}|null}
     let atual = null;
     let posNo = -1, posAt = -1, posGrade = -1;
     let resumoDe = null;        // unidade cujo bloco R E S U M O está sendo lido
     let hdrResumo = null;       // posições (fim) das colunas do RESUMO
 
     function unidade(s){
-      if(!un[s]) un[s] = { np: 0, ac: 0, at: 0, cli: [], resumo: null };
+      if(!un[s]) un[s] = { np: 0, ac: 0, at: 0, cli: [], tr: [], resumo: null };
       return un[s];
     }
     function numerosComFim(linha){
@@ -134,7 +140,7 @@
       }
 
       // ---- linha de documento ----
-      const m = l.match(/^([A-Z0-9]{3}) (\d{6}-\d)\s/);
+      const m = l.match(/^([A-Z0-9]{3}) ?(\d{6}-\d)\s/);   // aceita com ou sem espaço entre série e número
       if(!m || !atual) continue;
       const ctrc = chaveCtrc(m[1] + m[2]);
 
@@ -150,7 +156,7 @@
       const u = unidade(atual);
       if(/\d/.test(campoAt)){
         if(campoAt.indexOf("*") !== -1){ u.ac++; u.cli.push(ctrc); }
-        else u.at++;
+        else{ u.at++; u.tr.push(ctrc); }
       }else{
         u.np++;     // sem número na coluna ATRASADO = entregue no prazo (adiantado ou no dia)
       }
@@ -161,7 +167,7 @@
     Object.keys(un).forEach(s => {
       const u = un[s];
       if(!u.np && !u.ac && !u.at) return;
-      unidades[s] = { np: u.np, ac: u.ac, at: u.at, cli: u.cli };
+      unidades[s] = { np: u.np, ac: u.ac, at: u.at, cli: u.cli, tr: u.tr };
       np += u.np; ac += u.ac; at += u.at; total += u.np + u.ac + u.at;
       if(u.resumo && (u.resumo.np !== u.np || u.resumo.ac !== u.ac || u.resumo.at !== u.at)) divergentes.push(s);
     });
@@ -207,8 +213,17 @@
       ctrc: col("SERIE/NUMERO CTRC"), unidade: col("UNIDADE RECEPTORA"), codigo: col("CODIGO DA ULTIMA OCORRENCIA"),
       prev: col("PREVISAO DE ENTREGA"), entrega: col("DATA DA ENTREGA REALIZADA"), dias: col("QUANTIDADE DE DIAS DE ATRASO"),
       rem: col("CLIENTE REMETENTE"), dest: col("CLIENTE DESTINATARIO"), cidade: col("CIDADE DE ENTREGA"),
-      nf: col("NOTAS FISCAIS"), canc: col("DATA DO CANCELAMENTO")
+      nf: col("NOTAS FISCAIS"), canc: col("DATA DO CANCELAMENTO"),
+      pag: -1, cnpjPag: -1
     };
+    // Pagador: aceita "Cliente Pagador", "Nome Pagador", "Pagador", "Razão Social Pagador"...
+    // (qualquer cabeçalho com PAGADOR que não seja CNPJ/CPF/unidade) e o CNPJ do pagador separado.
+    const ehDoc = h => /CNPJ|CPF|CGC|DOCUMENTO/.test(h);
+    const cabPag = cab.map((h, i) => ({ h, i })).filter(x => /PAGADOR/.test(x.h));
+    ["CLIENTE PAGADOR", "NOME PAGADOR", "PAGADOR", "NOME DO PAGADOR", "RAZAO SOCIAL PAGADOR"].some(n => { const i = col(n); if(i >= 0){ C.pag = i; return true; } return false; });
+    if(C.pag < 0){ const x = cabPag.find(y => !ehDoc(y.h) && !/UNIDADE|PRACA/.test(y.h)); if(x) C.pag = x.i; }
+    ["CNPJ PAGADOR", "CNPJ_PAGADOR", "CGC PAGADOR", "CNPJ/CPF PAGADOR", "CPF/CNPJ PAGADOR"].some(n => { const i = col(n); if(i >= 0){ C.cnpjPag = i; return true; } return false; });
+    if(C.cnpjPag < 0){ const x = cabPag.find(y => ehDoc(y.h)); if(x) C.cnpjPag = x.i; }
     const faltam = ["ctrc", "unidade", "codigo", "prev"].filter(k => C[k] < 0);
     if(faltam.length) return { erro: "Colunas obrigatórias não encontradas: " + faltam.join(", ") + ".", registros: [] };
 
@@ -241,18 +256,32 @@
         r: C.rem >= 0 ? String(f[C.rem] || "").trim() : "",
         t: C.dest >= 0 ? String(f[C.dest] || "").trim() : "",
         y: C.cidade >= 0 ? String(f[C.cidade] || "").trim() : "",
-        n: C.nf >= 0 ? String(f[C.nf] || "").replace(/�/g, "").trim() : ""
+        n: C.nf >= 0 ? String(f[C.nf] || "").replace(/�/g, "").trim() : "",
+        g: C.pag >= 0 ? String(f[C.pag] || "").trim() : "",                       // cliente pagador
+        j: C.cnpjPag >= 0 ? String(f[C.cnpjPag] || "").replace(/\D/g, "") : ""    // CNPJ do pagador
       });
     }
-    return { periodo, registros, ignorados: ign, divergenciaDatas };
+    return { periodo, registros, ignorados: ign, divergenciaDatas, colunaPagador: C.pag >= 0 ? cab[C.pag] : "", cabecalhos: cab.filter(Boolean) };
   }
 
   /* ---------- situação de um documento ---------- */
-  // "atrasado?" — dias úteis do SSW; se a coluna vier vazia, cai na diferença de datas
+  // "atrasado?" — REGRA: Data da Entrega Realizada > Previsão de Entrega. Só olha as datas.
+  // Sem data de entrega (documento ainda aberto): usa os dias do SSW se vierem, senão compara a previsão com hoje.
   function estaAtrasado(r, hojeISO){
-    if(r.d !== null && r.d !== undefined) return r.d > 0;
     if(r.e) return r.e > r.p;
+    if(r.d !== null && r.d !== undefined) return r.d > 0;
     return !!hojeISO && r.p < hojeISO;
+  }
+
+  // Quem é o responsável por um atraso já baixado. Retorna { resp: "cliente"|"transp"|"pend", origem: "manual"|"012"|"012 antigo"|"sem 012" }
+  function responsavel(r, ctx){
+    const k = r.k;
+    if(ctx.manual && ctx.manual[k]) return { resp: ctx.manual[k], origem: "manual" };
+    if(ctx.clienteSet && ctx.clienteSet.has(k)) return { resp: "cliente", origem: "012" };
+    if(ctx.transpSet && ctx.transpSet.has(k)) return { resp: "transp", origem: "012" };
+    // relatório 012 importado numa versão antiga (sem lista de CTRCs sem asterisco): mantém a regra antiga
+    if(ctx.diasLegado && r.e && ctx.diasLegado.has((r.s || "") + ":" + r.e)) return { resp: "transp", origem: "012 antigo" };
+    return { resp: "pend", origem: "sem 012" };
   }
 
   /* =====================================================================
@@ -261,53 +290,67 @@
      clienteSet : Set de CTRCs com asterisco nos relatórios 012
      diasCom012 : Set de dias (ISO) que têm 012 importado
      opcoes.mes : "AAAA-MM" (mês de competência por previsão de entrega) ou "" para todos
+     opcoes.filtroReg : função(registro) -> true/false (ex.: filtrar pelo nome do Cliente Pagador).
+     opcoes.agrupar : função(registro) -> chave do grupo (ou ""/null para ignorar). Sem ela, agrupa por unidade receptora.
      ===================================================================== */
   function calcular(base, clienteSet, diasCom012, opcoes){
     opcoes = opcoes || {};
     const mes = opcoes.mes || "";
     const hoje = opcoes.hoje || new Date().toISOString().slice(0, 10);
     const lista = base instanceof Map ? Array.from(base.values()) : base;
+    const ctx = { clienteSet, transpSet: opcoes.transpSet, diasLegado: opcoes.diasLegado, manual: opcoes.manual };
     const mapa = {};
     const detalhe = [];
-    const semDia012 = {};          // dia -> qtd de atrasos baixados nele sem relatório 012
+    const docsSem012 = [];         // baixas atrasadas que NÃO aparecem no 012 (responsável "A definir")
+    const semDia012 = {};
     let atrasosSem012 = 0;
+    const chaveDe = (r) => opcoes.agrupar ? opcoes.agrupar(r) : r.u;   // padrão: unidade receptora; "por pagador": a sigla do pagador
+    const novo = (r, g) => ({ sigla: g, sistema: r.s || "", exped: 0, entregue: 0, noPrazoEnt: 0, atrasCli: 0, atrasTrans: 0, atrasPend: 0, abertoAtrasado: 0, abertoNoPrazo: 0 });
 
     lista.forEach(r => {
       if(mes && r.p.slice(0, 7) !== mes) return;
       if(opcoes.sistema && (r.s || "") !== opcoes.sistema) return;
       if(opcoes.de && r.p < opcoes.de) return;
       if(opcoes.ate && r.p > opcoes.ate) return;
-      const chave = (r.s || "") + "|" + r.u;
-      const m = mapa[chave] || (mapa[chave] = { sigla: r.u, sistema: r.s || "", exped: 0, entregue: 0, noPrazoEnt: 0, atrasCli: 0, atrasTrans: 0, abertoAtrasado: 0, abertoNoPrazo: 0 });
+      if(opcoes.filtroReg && !opcoes.filtroReg(r)) return;     // ex.: só um Cliente Pagador
+      const g = chaveDe(r);
+      if(!g) return;                                  // agrupar devolveu vazio = documento fora desta visão
+      const chave = (r.s || "") + "|" + g;
+      const m = mapa[chave] || (mapa[chave] = novo(r, g));
       m.exped++;
       const atrasado = estaAtrasado(r, hoje);
-      let situacao;
+      let situacao, rp = null;
       if(ehBaixa(r.c, r.u)){
         m.entregue++;
         if(!atrasado){ m.noPrazoEnt++; situacao = "Entregue no prazo"; }
-        else if(clienteSet && clienteSet.has(r.k)){ m.atrasCli++; situacao = "Atraso - cliente"; }
         else{
-          m.atrasTrans++; situacao = "Atraso - transportadora";
-          if(diasCom012 && r.e && !diasCom012.has((r.s || "") + ":" + r.e)){ atrasosSem012++; const kd = (r.s ? r.s + " " : "") + r.e; semDia012[kd] = (semDia012[kd] || 0) + 1; }
+          rp = responsavel(r, ctx);
+          if(rp.resp === "cliente"){ m.atrasCli++; situacao = "Atraso - cliente"; }
+          else if(rp.resp === "transp"){ m.atrasTrans++; situacao = "Atraso - transportadora"; }
+          else{
+            m.atrasPend++; situacao = "Atraso - a definir";
+            atrasosSem012++; docsSem012.push(r);
+            const kd = (r.s ? r.s + " " : "") + r.e; semDia012[kd] = (semDia012[kd] || 0) + 1;
+          }
         }
       }else if(atrasado){ m.abertoAtrasado++; situacao = "Aberto atrasado"; }
       else{ m.abertoNoPrazo++; situacao = "Aberto no prazo"; }
-      if(atrasado || opcoes.detalheTodos) detalhe.push({ r, situacao });
+      if(atrasado || opcoes.detalheTodos) detalhe.push({ r, situacao, resp: rp ? rp.resp : null, origem: rp ? rp.origem : "" });
     });
 
+    const CHAVES = ["exped", "entregue", "noPrazoEnt", "atrasCli", "atrasTrans", "atrasPend", "foraDoPrazo", "abertoAtrasado", "abertoNoPrazo"];
     const unidades = Object.values(mapa).map(m => {
-      const foraDoPrazo = m.atrasCli + m.atrasTrans;
+      const foraDoPrazo = m.atrasCli + m.atrasTrans + m.atrasPend;
+      // "A definir" ainda NÃO é culpa do cliente, então pesa contra a performance até alguém definir
       const sla = m.entregue > 0 ? ((m.noPrazoEnt + m.atrasCli) / m.entregue * 100) : null;
       return Object.assign({}, m, { foraDoPrazo, sla, total: m.exped });
     }).sort((a, b) => b.exped - a.exped || a.sigla.localeCompare(b.sigla) || a.sistema.localeCompare(b.sistema));
 
-    const tot = unidades.reduce((a, u) => {
-      ["exped", "entregue", "noPrazoEnt", "atrasCli", "atrasTrans", "foraDoPrazo", "abertoAtrasado", "abertoNoPrazo"].forEach(k => a[k] += u[k]);
-      return a;
-    }, { exped: 0, entregue: 0, noPrazoEnt: 0, atrasCli: 0, atrasTrans: 0, foraDoPrazo: 0, abertoAtrasado: 0, abertoNoPrazo: 0 });
+    const zero = {}; CHAVES.forEach(k => zero[k] = 0);
+    const tot = unidades.reduce((a, u) => { CHAVES.forEach(k => a[k] += u[k]); return a; }, zero);
     tot.sla = tot.entregue > 0 ? ((tot.noPrazoEnt + tot.atrasCli) / tot.entregue * 100) : null;
 
-    return { unidades, totais: tot, detalhe, atrasosSem012, semDia012 };
+    return { unidades, totais: tot, detalhe, atrasosSem012, semDia012, docsSem012 };
   }
 
   function mesesDisponiveis(base){
@@ -316,7 +359,7 @@
     return Array.from(set).sort().reverse();
   }
 
-  const API = { detectarTipo, parse012, parseBase, calcular, mesesDisponiveis, ehBaixa, estaAtrasado, isoDeBR, brDeISO, chaveCtrc };
+  const API = { detectarTipo, parse012, parseBase, calcular, mesesDisponiveis, ehBaixa, estaAtrasado, responsavel, isoDeBR, brDeISO, chaveCtrc };
   root.PTCore = API;
   if(typeof module !== "undefined" && module.exports) module.exports = API;
 })(typeof window !== "undefined" ? window : globalThis);

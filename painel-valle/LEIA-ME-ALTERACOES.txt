@@ -163,3 +163,100 @@ Performance Teste v2 - importacao por SISTEMA (VAL = Do Valle, RVA = Real Vale)
 - Aba de importacao escolhe o sistema; base e 012 ficam separados por sistema.
 - Visao Geral / Do Valle / Real Vale (cartoes com a performance de cada um). Na visao Geral cada linha mostra a etiqueta VAL/RVA.
 - Filtros na tabela: unidade, focal, performance, atrasos, periodo de previsao. Dados da versao anterior viram VAL automaticamente.
+
+Performance Teste v3
+- Datas do filtro (Previsao de / ate) agora sao digitadas dd/mm/aaaa (mascara automatica): so aplica quando completa/valida, sem recarregar enquanto digita (corrige o bug).
+- Nova sub-aba "Importacao e controle": envio dos arquivos + calendario por sistema (VAL/RVA) mostrando quais dias de 012 foram importados e quais faltam;
+  clicar num dia faltando o dispensa (feriado/sem movimento); historico dos arquivos; importar o mesmo arquivo de novo e ignorado (nao duplica).
+
+Performance Teste v4 - no aviso "atrasos baixados em dia sem 012" ha o botao "Ver quais sao os documentos":
+lista CTRC, NF, remetente, destinatario, cidade, cod. ocorrencia, previsao, data da baixa e dias de atraso (filtro por dia da baixa + Excel).
+
+Performance Teste v5 - lista "Ver quais sao os documentos" agora abre em JANELA sobre a tela (Esc ou clique fora fecha);
+novo painel "Perfil das entregas" abaixo da tabela: entregues antes (1, 2, 3+ dias), no dia, atrasadas, por tipo de baixa e por dia de previsao.
+
+Performance Teste v6 - "Perfil das entregas" redesenhado (visao gerencial): cartoes, barra unica de distribuicao com legenda,
+colunas dia a dia (100%) com dica ao passar o mouse, tipo de baixa, tamanho dos atrasos e tabela recolhida com Excel.
+
+Performance Teste v7 - removido "Pontos de atencao"; coluna lateral (medidor + cartoes) estica para a altura da tabela;
+cartoes Geral / Do Valle / Real Vale agora tambem seguem os filtros (unidade, focal, performance, atrasos, datas).
+
+PERFORMANCE TESTE v9.1 - ATRASO FIEL A BASE (VAL e RVA)
+- Atraso agora e SEMPRE: Data da Entrega Realizada > Previsao de Entrega (comparacao de datas).
+  Antes o painel seguia a coluna "Quantidade de Dias de Atraso" do SSW (dias uteis), que vem 0 quando a baixa
+  e feita em sabado/domingo/feriado - por isso alguns documentos baixados em atraso sumiam da tabela.
+- A base de entregas diz SE atrasou; o relatorio 012 diz DE QUEM: * = Cliente, sem * = Transportadora.
+- Atrasado na base e AUSENTE do 012 = "A definir" (nova coluna na tabela). Voce define o responsavel na tela
+  (clicar no aviso amarelo, ou na unidade > coluna Responsavel). Botoes "Todos -> Cliente/Transportadora" em massa.
+  Edicao manual vale sobre o 012; botao ↺ volta ao que diz o 012. As edicoes ficam salvas no navegador.
+- Se uma nova base de entregas mostra que o atraso foi corrigido, o documento deixa de contar, mesmo que o 012 cite.
+- "A definir" pesa como fora do prazo (nao e cliente) ate ser definido.
+- 012 ja importados antes desta versao nao guardavam os CTRCs sem asterisco: continuam como Transportadora (regra antiga)
+  ate voce reimportar o arquivo do dia (a reimportacao agora e aceita).
+- Arquivos: performance-teste-core.js, performance-teste.js, performance-teste.css, index.html (cache ?v=9.1).
+
+v9.2 - CONFERENCIA 012 x BASE (aba Quadro, abaixo da tabela, recolhida)
+- Lista todo CTRC que o 012 marca como atrasado mas a base NAO conta como atraso baixado, com o MOTIVO:
+  nao existe na base / esta na base do outro sistema (VAL x RVA) / codigo da ocorrencia nao e baixa /
+  entrega <= previsao na base / previsao em outro mes. Tem busca por CTRC.
+- Leitura do 012 aceita CTRC com ou sem espaco entre serie e numero.
+
+v9.3 - Visao GERAL junta VAL + RVA por sigla (uma linha por sigla, numeros somados, performance recalculada). Clicar na sigla lista os documentos dos dois sistemas (com etiqueta VAL/RVA). Visoes Do Valle e Real Vale continuam separadas.
+
+ATUALIZACAO - Performance Teste > "Performance por pagador" + ANP na Jessica
+- Nova sub-aba "Performance por pagador": le o campo CLIENTE PAGADOR de toda a base e calcula a performance de cada
+  pagador ((No Prazo + Cliente) / Entregue). Pagadores com o MESMO NOME (mesmo com CNPJs diferentes) sao juntados;
+  maiusculas, acentos, pontuacao e espacos repetidos nao diferenciam. Nomes diferentes nunca sao juntados.
+- Filtro "Nome do pagador" (lista) e "Buscar nome" na sub-aba; filtro "Pagador" tambem no Quadro de performance.
+- Planilhas ja importadas antes nao tem o pagador salvo: soltar de novo a planilha em "Importacao e controle"
+  (o painel completa o pagador, sem duplicar e sem perder as edicoes de responsavel).
+- Confirmacao de Filiais: ANP saiu do SAC 13 (Keslley) e foi para o SAC 1 (Jessica). Quem ja tinha cadastro salvo
+  no navegador e movido automaticamente uma unica vez.
+- Arquivos: app.js, performance-teste-core.js, performance-teste.js, performance-teste.css, index.html.
+
+NOVO - Rede Do Valle > "Comercial · Cotações" (cotacoes-comercial.js / .css)
+- BI do time comercial a partir do relatorio de cotacoes do SSW (.sswweb/.csv). Importe um ou varios arquivos;
+  reimportar atualiza pelo numero da cotacao (COTADO vira CTRC EMI em tempo real). Le pelo NOME das colunas.
+- Cotacoes por usuario (todos que aparecem), frete total = PROPOSTA ATUAL, ticket medio.
+- Conversao pela SITUACAO: CTRC EMI = convertida; COTADO e COT FIXO = nao convertida; demais (CANCELAD, COT CLI,
+  CONTRAT) ficam a parte e fora da taxa (caixa "Incluir outras na base" muda isso).
+- Equipes editaveis na tela: MTZ = chrishyn, gabilima, stephane, jucieli; Filiais = karlareg, jenniffe, izadora; resto = Outros.
+- Filtros: periodo, equipe, usuario, situacao. Clique numa linha de usuario para filtrar. Exporta resumo e detalhe em CSV.
+- Arquivos alterados: app.js (TABS, icone, secao, refresh), index.html (css/js). Dados no navegador (chave valle_comercial_cotacoes_v1).
+
+Comercial · Cotações v2
+- Filtros com MULTI-SELECAO: usuario (com atalhos "Time MTZ" / "Filiais"), equipe, unidade, situacao, tipo de frete + periodo
+  (De/Ate, Tudo, Ultimo dia, 7 dias, Mes) + leitura (Todas / Convertidas / Nao convertidas / Outras).
+- Dashboard: KPIs com mini-graficos (cotacoes, frete cotado, convertidas, conversao, FRETE EMITIDO pelo FRETE CTRC, em aberto,
+  tempo medio cotacao->emissao), comparativo MTZ x Filiais, funil, grafico Volume x Conversao (bolhas), ranking ordenavel por usuario
+  com produtividade (cotacoes/dia), evolucao diaria (cotacoes ou R$), mapa de calor dia x hora, destinos (UF), maiores clientes, detalhe.
+- Clique no usuario (tabela, bolha ou barra) = FICHA COMPLETA (painel lateral): KPIs, comparacao com equipe e geral, situacao, horarios,
+  evolucao, clientes, destinos e todas as cotacoes; botoes "Filtrar so este usuario", "Adicionar ao filtro" e exportar CSV. Esc fecha.
+- Para os filtros de unidade e tipo de frete, reimporte o arquivo (versao anterior nao guardava o tipo de frete).
+
+Comercial · Cotacoes v2.1
+- Importacao separada por sistema: caixas VAL (Rede Do Valle) e RVA (Real Vale), cada uma com seu arquivo/botao e "apagar". Colar texto tambem escolhe o sistema.
+  Cotacoes salvas antes desta versao viram VAL automaticamente. Filtro "Sistema" e comparativo VAL x RVA (aparece quando ha os dois).
+- Novo painel "Cotacoes feitas por dia - por usuario" (matriz usuario x dia, total, dias, media, melhor dia) com Exportar CSV e Copiar p/ colar (Excel).
+- Novo painel "Maiores cotacoes": Top 15 do filtro ou a maior cotacao de cada usuario; barra colorida pela situacao; clique abre a ficha.
+
+Comercial · Cotacoes v2.2 - exportacao
+- Botoes "Exportar Excel" e "Exportar PDF" no topo da aba (mais o CSV do resumo). Ambos respeitam TODOS os filtros da tela.
+- Excel (.xlsx): abas Resumo (indicadores, equipe, sistema, situacao), Por usuario, Cotacoes por dia, Maiores cotacoes (30) e Detalhe (todas as cotacoes filtradas, com filtro automatico). Numeros reais (somam/filtram).
+- PDF (A4 paisagem): KPIs, produtividade por usuario, cotacoes por dia (mapa de cor), 15 maiores cotacoes e situacao.
+- Usam ExcelJS e jsPDF/autoTable ja carregados no index.html (precisa de internet para essas bibliotecas, como nas outras exportacoes).
+
+
+ATUALIZACAO - Comercial > Cotacoes > Exportar PDF (relatorio para a gestora comercial)
+- "As 15 maiores cotacoes convertidas": traz SOMENTE cotacoes com CTRC emitido (CTRC EMI), com CTRC, emissao e frete emitido.
+- Novas secoes: Resultado por equipe, por tipo de frete e, no final, o quadro "Funil e situacao das cotacoes" (rosca de conversao + funil + tabela), igual ao da tela, e o grafico "Evolucao diaria" (cotacoes do dia x convertidas).
+
+NOVO - Visao operacional > aba "Comparacao por Unidade" (comparacao-unidades.js / .css)
+- Compara dois meses (A e B) por UNIDADE RECEPTORA. Fica no menu abaixo de "Comparacao SacFlow". Aba independente (chave valle_cmpunid_v1).
+- Importar: planilha do SSW "CTRCs expedidos e recebidos" (.sswweb/.csv), um ou varios arquivos. Os numeros sao guardados dia a dia;
+  reimportar um periodo substitui so os dias dele. Cancelados e CTRC duplicado nao contam.
+- Colunas: Frete A/B/Δ R$/Δ %, CT-e A/B/Δ, Peso A/B/Total/Δ, R$/CT-e A/B/Δ, Volumes A/B/Δ, Performance A/B/Δ p.p., Status do frete, Alerta de performance + linha TOTAL.
+- Mes atual parcial: opcao "Comparar o mesmo periodo (dias 1 a N)" corta o mes A nos mesmos dias do mes B.
+- Status do frete: Em alta / Em queda a partir de X % (padrao 5). Alerta de performance: Queda/Melhora a partir de X p.p. (padrao 1).
+- Performance: celulas digitaveis ate o 2o arquivo ser definido. Exporta Excel.
+- Arquivos alterados: app.js (TABS, secao, refresh, attach), index.html (css/js).

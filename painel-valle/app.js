@@ -11,7 +11,8 @@ const FOCAIS_PADRAO = [
     {sigla:"CMG", grupo:"CW3", grupoNome:"CW3 TRANSPORTES E LOGÍSTICA LTDA"},
     {sigla:"CW3", grupo:"CW3", grupoNome:"CW3 TRANSPORTES E LOGÍSTICA LTDA"},
     {sigla:"IVC"}, {sigla:"NWF"}, {sigla:"RIT"}, {sigla:"SPR"},
-    {sigla:"TLC"}, {sigla:"TNG"}, {sigla:"TOP"}, {sigla:"USE"}
+    {sigla:"TLC"}, {sigla:"TNG"}, {sigla:"TOP"}, {sigla:"USE"},
+    {sigla:"ANP"}
   ]},
   { id:"sac3", titulo:"SAC 3 — Pablo", unidades:[
     {sigla:"EGO"}, {sigla:"BSB"}, {sigla:"ITA"}, {sigla:"CRI"}, {sigla:"RUB"}, {sigla:"STZ"}
@@ -26,7 +27,7 @@ const FOCAIS_PADRAO = [
     {sigla:"NIQ"}, {sigla:"PIR"}, {sigla:"URU"}
   ]},
   { id:"sac13", titulo:"SAC 13 — Keslley", unidades:[
-    {sigla:"ANP"}, {sigla:"JAR"}, {sigla:"RIA"}, {sigla:"GAN"}
+    {sigla:"JAR"}, {sigla:"RIA"}, {sigla:"GAN"}
   ]}
 ];
 
@@ -244,9 +245,31 @@ function escHtml(s){
 function carregarFocais(){
   try{
     const raw = localStorage.getItem(KEYS.focais);
-      if(Array.isArray(lista)) return mesclarNovasUnidadesPadrao(lista);
+      if(Array.isArray(lista)) return mesclarNovasUnidadesPadrao(migrarAnpParaSac1(lista));
   }catch(e){}
   return JSON.parse(JSON.stringify(FOCAIS_PADRAO));
+}
+
+// Migração única: a unidade ANP passou do SAC 13 (Keslley) para o SAC 1 (Jéssica).
+// Quem já tem Focais salvos no navegador ainda tem ANP no SAC 13 — move uma vez só
+// (se depois a pessoa mudar de novo na Confirmação de Filiais, não mexe mais).
+function migrarAnpParaSac1(lista){
+  try{
+    if(localStorage.getItem("tambasa_migr_anp_sac1")) return lista;
+    const sac1 = lista.find(f => f.id === "sac1");
+    const sac13 = lista.find(f => f.id === "sac13");
+    if(sac1 && sac13 && Array.isArray(sac13.unidades)){
+      const i = sac13.unidades.findIndex(u => u.sigla === "ANP");
+      if(i > -1){
+        const [anp] = sac13.unidades.splice(i, 1);
+        if(!Array.isArray(sac1.unidades)) sac1.unidades = [];
+        if(!sac1.unidades.some(u => u.sigla === "ANP")) sac1.unidades.push(anp);
+        localStorage.setItem(KEYS.focais, JSON.stringify(lista));
+      }
+    }
+    localStorage.setItem("tambasa_migr_anp_sac1", "1");
+  }catch(e){}
+  return lista;
 }
 
 // Garante que novas unidades incluidas no FOCAIS_PADRAO (ex.: novas
@@ -538,6 +561,7 @@ const TABS = [
   {id:"@sacs", label:"Acompanhamento de SAC", icon:"sac", group:"operacao", action:"sacs"},
   {id:"sacflow", label:"SacFlow", icon:"sacflow", group:"operacao"},
   {id:"sacflow-comparacao", label:"Comparação SacFlow", icon:"impacto", group:"operacao"},
+  {id:"comparacao-unidades", label:"Comparação por Unidade", icon:"impacto", group:"operacao"},
 
   {id:"performance-geral", label:"Performance Geral", icon:"performance-geral", group:"valle"},
   {id:"performance-teste", label:"Performance Teste", icon:"performance", group:"valle"},
@@ -546,6 +570,7 @@ const TABS = [
   {id:"impacto-supervisao", label:"Impacto Supervisão", icon:"impacto", group:"valle"},
   {id:"pendencias", label:"Pendências Abertas", icon:"pendencias", group:"valle"},
   {id:"confirmacao", label:"Confirmação de Filiais", icon:"confirmacao", group:"valle"},
+  {id:"comercial-cotacoes", label:"Comercial · Cotações", icon:"comercial", group:"valle"},
 
   {id:"performance", label:"Performance", icon:"performance", group:"tambasa"},
   {id:"trocas", label:"Trocas", icon:"trocas", group:"tambasa"},
@@ -560,6 +585,7 @@ const TABS = [
 const NAV_ICONS = {
   dashboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.2"/></svg>',
   impacto: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20v-6"/><path d="M9 20v-9"/><path d="M15 20V8"/><path d="M20 20V4"/><path d="M12 3.5v17" stroke-dasharray="2 2.5"/></svg>',
+  comercial: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3.5h10l4 4V20.5H5z"/><path d="M15 3.5v4h4"/><path d="M8.5 12h7"/><path d="M8.5 15.5h4"/></svg>',
   trocas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13l-3-3"/><path d="M20 16H7l3 3"/></svg>',
   boletos: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5.5" width="17" height="13" rx="1.6"/><path d="M3.5 10h17"/><path d="M7 14.5h4"/></svg>',
   pendencias: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5"/><circle cx="12" cy="16" r="0.6" fill="currentColor" stroke="none"/></svg>',
@@ -656,6 +682,8 @@ function switchTab(tabId){
   if(tabId === "performance-teste" && window.performanceTesteRefresh) window.performanceTesteRefresh();   // redesenha com os dados salvos
   if(tabId === "sacflow" && window.sacflowRefresh) window.sacflowRefresh();   // recarrega os dados do SacFlow e redesenha
   if(tabId === "sacflow-comparacao" && window.sacflowComparacaoRefresh) window.sacflowComparacaoRefresh();   // redesenha com os dados salvos
+  if(tabId === "comparacao-unidades" && window.comparacaoUnidadesRefresh) window.comparacaoUnidadesRefresh();   // redesenha com os dados salvos
+  if(tabId === "comercial-cotacoes" && window.cotacoesComercialRefresh) window.cotacoesComercialRefresh();   // redesenha com os dados salvos
   if(tabId === "impacto-supervisao" && window.impactoSupervisaoRefresh) window.impactoSupervisaoRefresh();   // pega Focais/dados atualizados
   closeMobileSidebar();
   window.scrollTo(0,0);
@@ -692,7 +720,9 @@ function renderApp(){
     <section class="section active" id="sec-dashboard">${dashboardHTML()}</section>
     <section class="section" id="sec-sacflow">${window.sacflowHTML ? window.sacflowHTML() : ""}</section>
     <section class="section" id="sec-sacflow-comparacao">${window.sacflowComparacaoHTML ? window.sacflowComparacaoHTML() : ""}</section>
+    <section class="section" id="sec-comparacao-unidades">${window.comparacaoUnidadesHTML ? window.comparacaoUnidadesHTML() : ""}</section>
     <section class="section" id="sec-impacto-supervisao">${window.impactoSupervisaoHTML ? window.impactoSupervisaoHTML() : ""}</section>
+    <section class="section" id="sec-comercial-cotacoes">${window.cotacoesComercialHTML ? window.cotacoesComercialHTML() : ""}</section>
     <section class="section" id="sec-trocas">${trocasHTML()}</section>
     <section class="section" id="sec-boletos">${boletosHTML()}</section>
     <section class="section" id="sec-pendencias">${pendenciasHTML()}</section>
@@ -722,8 +752,10 @@ function renderApp(){
   attachOcorrenciasEvents();
   if(window.attachIndenizacaoEvents) window.attachIndenizacaoEvents();
   if(window.attachImpactoSupervisao) window.attachImpactoSupervisao();
+  if(window.attachCotacoesComercial) window.attachCotacoesComercial();
   if(window.attachSacflow) window.attachSacflow();
   if(window.attachSacflowComparacao) window.attachSacflowComparacao();
+  if(window.attachComparacaoUnidades) window.attachComparacaoUnidades();
   dashAfterRender();
 }
 

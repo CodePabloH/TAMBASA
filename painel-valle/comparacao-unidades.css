@@ -1,0 +1,50 @@
+/* Comparação por Unidade — tabela larga com 1ª coluna fixa, mesmos tokens do BI Do Valle */
+#cuRoot .cu-imp{background:#fff;border:1px solid var(--line);border-radius:10px;margin-bottom:14px}
+#cuRoot .cu-imp>summary{cursor:pointer;padding:12px 16px;font-weight:800;font-size:13px;color:var(--navy);list-style:none}
+#cuRoot .cu-imp>summary::-webkit-details-marker{display:none}
+#cuRoot .cu-imp>summary::before{content:"▸ ";color:var(--gold)}
+#cuRoot .cu-imp[open]>summary::before{content:"▾ "}
+#cuRoot .cu-sub{font-weight:500;color:var(--muted)}
+#cuRoot .cu-imp-b{padding:0 16px 14px}
+#cuRoot .cu-drop{border:1.5px dashed var(--line);border-radius:9px;padding:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-bottom:10px}
+#cuRoot .cu-msg{padding:9px 12px;border-radius:8px;font-size:12.5px;margin-bottom:10px;line-height:1.5}
+#cuRoot .cu-msg.ok{background:#e9f5e3;border:1px solid #bfdcae;color:#235a14}
+#cuRoot .cu-msg.err{background:#fdecea;border:1px solid #f0b8b3;color:#8f241d}
+#cuRoot .cu-acoes{margin-top:10px}
+#cuRoot .cu-vazio{background:#fff;border:1px solid var(--line);border-radius:10px;padding:28px;text-align:center;color:var(--muted);font-size:13.5px}
+#cuRoot .cu-ctl{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin-bottom:14px}
+#cuRoot .cu-ctl label{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:var(--muted)}
+#cuRoot .cu-ctl select,#cuRoot .cu-ctl input[type=number]{padding:7px 9px;border:1px solid var(--line);border-radius:7px;font:500 13px inherit;font-family:inherit;color:var(--text);background:#fff;text-transform:none}
+#cuRoot .cu-ctl .cu-chk{flex-direction:row;align-items:center;gap:7px;text-transform:none;letter-spacing:0;font-size:12.5px;color:var(--text);font-weight:600}
+#cuRoot .cu-ctl .btn{margin-left:auto}
+#cuRoot .cu-aviso{background:#fff7e6;border:1px solid #f1d28a;border-left:5px solid #e0a526;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#6b4a06;line-height:1.5}
+#cuRoot .cu-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:14px}
+#cuRoot .cu-kpi{background:#fff;border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:10px;padding:12px 14px}
+#cuRoot .cu-kt{font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+#cuRoot .cu-kv{font-size:22px;font-weight:800;color:var(--navy);margin:3px 0}
+#cuRoot .cu-ks{font-size:12px;color:var(--muted)}
+#cuRoot .cu-kd{font-size:12.5px;font-weight:700;margin-top:3px;color:var(--muted)}
+#cuRoot .cu-wrap{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:auto;max-height:72vh}
+#cuRoot .cu-table{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:100%;white-space:nowrap}
+#cuRoot .cu-table th,#cuRoot .cu-table td{padding:7px 10px;border-bottom:1px solid #edf0ea;border-right:1px solid #f1f4ee}
+#cuRoot .cu-th1,#cuRoot .cu-th2{background:#2d6a17;color:#fff;font-weight:800;font-size:11.5px;text-align:center;position:sticky;top:0;z-index:2;cursor:pointer;user-select:none}
+#cuRoot .cu-th1.cu-gr{cursor:default;border-bottom:1px solid #4f9d2d}
+#cuRoot .cu-th2{top:31px;background:#3b8a1f}
+#cuRoot .cu-sticky,#cuRoot td.cu-u{position:sticky;left:0;z-index:3;text-align:left}
+#cuRoot td.cu-u{background:#fff;z-index:1;font-weight:800;color:var(--navy);border-right:2px solid var(--line)}
+#cuRoot .cu-table td.cu-n{text-align:right;font-variant-numeric:tabular-nums}
+#cuRoot .cu-na{color:#aab3a5}
+#cuRoot .cu-pos{color:#2f8a2a}#cuRoot .cu-neg{color:#cf3d35}#cuRoot .cu-zero{color:var(--muted)}
+#cuRoot .cu-table tbody tr:hover td{background:#f4f7f1}
+#cuRoot .cu-table tbody tr:hover td.cu-u{background:#f4f7f1}
+#cuRoot .cu-st{text-align:center}
+#cuRoot .cu-tag{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:800}
+#cuRoot .cu-tag.up{background:#e9f5e3;color:#235a14}#cuRoot .cu-tag.dn{background:#fdecea;color:#8f241d}
+#cuRoot .cu-tag.eq{background:#eef1ec;color:#4d5a48}#cuRoot .cu-tag.na{color:#aab3a5}
+#cuRoot .cu-in{width:64px;padding:3px 5px;border:1px solid transparent;border-radius:5px;text-align:right;font:inherit;background:transparent;color:var(--text)}
+#cuRoot .cu-in:hover,#cuRoot .cu-in:focus{border-color:var(--line);background:#fff;outline:none}
+#cuRoot tr.cu-tot td{position:sticky;bottom:0;background:#e8f4e1;font-weight:800;border-top:2px solid #4f9d2d;z-index:1}
+#cuRoot tr.cu-tot td.cu-u{z-index:3}
+#cuRoot .cu-nota{font-size:11.5px;color:var(--muted);margin-top:10px;line-height:1.5}
+#cuRoot .cu-mini{font-size:12px;min-width:0}
+#cuRoot .cu-mini th{background:#f4f7f1;position:static;color:var(--navy);cursor:default;text-align:left}
