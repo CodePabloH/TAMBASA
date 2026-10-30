@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Do Valle | Painel de Controle</title>
+<link rel="stylesheet" href="style.css?v=1.5">
+<link rel="stylesheet" href="dashboard-principal.css?v=2.4">
+<link rel="stylesheet" href="visao-operacao.css?v=2.4">
+<link rel="stylesheet" href="indenizacao.css?v=1.4">
+<link rel="stylesheet" href="impacto-supervisao.css?v=1.0">
+<link rel="stylesheet" href="cotacoes-comercial.css?v=1.0">
+<link rel="stylesheet" href="alerta-pdf.css?v=1.0">
+<link rel="stylesheet" href="bi-valle.css?v=1.0">
+<link rel="stylesheet" href="acompanhamento-pacotes.css?v=1.2">
+<link rel="stylesheet" href="analise-gerencial.css?v=2.3">
+<link rel="stylesheet" href="sacflow.css?v=4.2">
+<link rel="stylesheet" href="sacflow-comparacao.css?v=1.0">
+<link rel="stylesheet" href="performance-teste.css?v=9.14">
+<link rel="stylesheet" href="comparacao-unidades.css?v=3.3">
+<link rel="stylesheet" href="atrasos-transportadora.css?v=1.0">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body>
+
+<div class="mobile-topbar">
+  <button class="menu-btn" id="menuBtn">&#9776;</button>
+  <img src="logo-dovalle.png" alt="Do Valle" data-brand-logo>
+  <strong>Painel de Controle</strong>
+</div>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="Recolher menu">‹</button>
+    <div class="brand">
+      <div class="logo-frame">
+        <img src="logo-dovalle.png" alt="Do Valle Transportadora" data-brand-logo>
+      </div>
+      <div class="brand-txt">
+        <div class="brand-title">PAINEL DE CONTROLE</div>
+        <div class="brand-sub">Rede Do Valle / Real Vale</div>
+      </div>
+    </div>
+    <nav class="side-nav" id="tabsNav"></nav>
+    <div class="sidebar-footer">
+      <b>Do Valle Transportadora</b><br>
+      Visão operacional · Tambasa
+    </div>
+  </aside>
+
+  <div class="content-area">
+    <div class="content-header">
+      <div class="ch-title">
+        <div class="crumb"><span id="crumbArea">Visão operacional</span></div>
+        <h1 id="pageTitle">Dashboard</h1>
+      </div>
+      <span class="scope-badge scope-operacao" id="scopeBadge" title="A que operação esta tela pertence"></span>
+      <div class="ch-right">
+        <button type="button" class="ch-btn" id="btnAbrirVO" title="Abrir a Visão da Operação em tela cheia">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.2"/></svg>
+          Visão da Operação
+        </button>
+        <div class="today" id="todayLabel"></div>
+      </div>
+    </div>
+    <main id="mainContent"></main>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="storage-idb.js?v=1.0"></script>
+<script>
+/* Carrega o painel só depois que o IndexedDB estiver pronto (dados já migrados para a memória). */
+(function(){
+  var BUILD = "idb1", domPronto = document.readyState === "complete";
+  document.addEventListener("DOMContentLoaded", function(){ domPronto = true; });
+  var arquivos = [
+    "exportar-excel.js",
+    "exportar-dashboard.js",
+    "exportar-ocorrencias.js",
+    "exportar-fechamento.js",
+    "exportar-unidade.js",
+    "entregas-previstas.js?v=1.1",
+    "acompanhamento-pacotes.js?v=1.2",
+    "analise-parsers.js?v=2.0",
+    "analise-gerencial.js?v=2.3",
+    "dashboard-principal.js?v=2.4",
+    "filmagens-breno.js?v=1.3",
+    "breno-focal.js?v=1.0",
+    "visao-operacao.js?v=3.1",
+    "indenizacao.js?v=1.8",
+    "sla-acompanhamento.js?v=1.1",
+    "impacto-supervisao.js?v=1.0",
+    "cotacoes-comercial.js?v=1.4",
+    "alerta-pdf.js?v=1.0",
+    "sacflow-core.js?v=1.0",
+    "sacflow.js?v=4.2",
+    "sacflow-comparacao.js?v=1.0",
+    "performance-teste-core.js?v=9.13",
+    "performance-teste.js?v=9.14",
+    "comparacao-unidades.js?v=3.3",
+    "atrasos-logo.js?v=1.0",
+    "atrasos-transportadora.js?v=1.0",
+    "app.js?v=1.5",
+    "bi-valle.js?v=1.0",
+    "backup-ui.js?v=1.0",
+    "area-hub.js?v=1.0",
+    "papeis.js?v=1.0",
+    "sync-supabase.js?v=1.3",
+    "auth-login.js?v=1.1"
+  ];
+  function injeta(i){
+    if(i >= arquivos.length){
+      // os scripts foram carregados depois do evento original; reenvia para quem espera DOMContentLoaded
+      if(domPronto || document.readyState === "complete") document.dispatchEvent(new Event("DOMContentLoaded", {bubbles:true, cancelable:true}));
+      return;
+    }
+    var src = arquivos[i];
+    src += (src.indexOf("?") > -1 ? "&" : "?") + "b=" + BUILD;
+    var el = document.createElement("script");
+    el.src = src;
+    el.onload = function(){ injeta(i + 1); };
+    el.onerror = function(){ console.error("Falha ao carregar " + src); injeta(i + 1); };
+    document.body.appendChild(el);
+  }
+  window.LS_READY.then(function(){ injeta(0); });
+})();
+</script>
+</body>
+</html>
