@@ -105,6 +105,7 @@
   function erroLegivel(error){
     const m = String((error && (error.message || error.details)) || error || "");
     if(/row-level security|permission denied|42501/i.test(m)) return "Sem permissão para gravar. Confirme que seu e-mail está como admin na tabela \"perfis\" e que o SQL de sincronização foi executado.";
+    if(/could not find the function|PGRST202|42883/i.test(m)) return "O histórico de versões ainda não foi instalado no Supabase. Rode o arquivo supabase-historico.sql no SQL Editor.";
     if(/does not exist|42P01|schema cache/i.test(m)) return "A tabela \"painel_dados\" ainda não existe no Supabase. Execute o arquivo supabase-sincronizacao.sql no SQL Editor.";
     return m || "erro desconhecido";
   }
@@ -116,8 +117,43 @@
 
   /* ---------- ADMIN: publicar ---------- */
   let fila = Promise.resolve();       // publicações uma de cada vez (manual e automática não se atropelam)
-  function publicar(aoProgresso){ const r = fila.then(() => publicarAgora(aoProgresso)); fila = r.catch(() => {}); return r; }
-  async function publicarAgora(aoProgresso){
+  function publicar(aoProgresso, opc){ const r = fila.then(() => publicarAgora(aoProgresso, opc)); fila = r.catch(() => {}); return r; }
+  /* ---------- GUARDA: o que esta publicação apagaria ou encolheria no servidor? ---------- */
+  const kb = n => n == null ? "?" : n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.round(n / 1024) + " KB";
+  const nomeChave = k => k.startsWith(PREFIXO_IDB) ? k.slice(PREFIXO_IDB.length) : k;
+  async function resumoServidor(){
+    const r = await cliente.rpc("resumo_painel");
+    if(!r.error && Array.isArray(r.data)){ const m = {}; r.data.forEach(x => { m[x.chave] = { partes: +x.partes, tamanho: +x.tamanho }; }); return m; }
+    const m = {};      // sem a função no banco: só dá para detectar chaves removidas (sem tamanhos)
+    for(let a = 0; ; a += 1000){
+      const d = await ok(cliente.from(TABELA).select("chave,parte").order("chave").order("parte").range(a, a + 999));
+      d.forEach(x => { if(x.chave === META) return; (m[x.chave] = m[x.chave] || { partes: 0, tamanho: null }).partes++; });
+      if(d.length < 1000) break;
+    }
+    return m;
+  }
+  function calcularRiscos(remoto, tamLocal){
+    const r = [];
+    Object.keys(remoto).forEach(k => {
+      if(!(k in tamLocal)) r.push({ chave: k, tipo: "remove", antes: remoto[k].tamanho });
+      else{
+        const a = remoto[k].tamanho, d = tamLocal[k];
+        if(a && a > 20000 && d < a * 0.7) r.push({ chave: k, tipo: "encolhe", antes: a, depois: d });
+      }
+    });
+    return r;
+  }
+  function textoRiscos(rs){
+    const linhas = rs.slice(0, 10).map(x => x.tipo === "remove"
+      ? "• " + nomeChave(x.chave) + " — seria APAGADO (" + kb(x.antes) + ")"
+      : "• " + nomeChave(x.chave) + " — ficaria menor: " + kb(x.antes) + " → " + kb(x.depois));
+    if(rs.length > 10) linhas.push("• …e mais " + (rs.length - 10) + " item(ns)");
+    return linhas.join("\n");
+  }
+  function cancelado(){ const e = new Error("Publicação cancelada."); e.cancelado = true; return e; }
+
+  async function publicarAgora(aoProgresso, opc){
+    opc = opc || {};
     if(papel !== "admin") throw new Error("Só o administrador pode publicar.");
     const prog = t => { if(aoProgresso) aoProgresso(t); };
     if(window.LS_FLUSH) await window.LS_FLUSH();
@@ -136,6 +172,25 @@
       partesPorChave[k] = partes.length;
       partes.forEach((v, i) => linhas.push({ chave: k, parte: i, valor: v }));
     });
+
+    // 0) trava de segurança: o que seria apagado/reduzido no servidor?
+    prog("Conferindo o que será alterado…");
+    const tamLocal = {};
+    linhas.forEach(l => { tamLocal[l.chave] = (tamLocal[l.chave] || 0) + l.valor.length; });
+    const riscos = calcularRiscos(await resumoServidor(), tamLocal);
+    if(riscos.length){
+      if(!opc.manual || !opc.confirmar)
+        throw new Error("PAUSADO: esta publicação apagaria ou reduziria " + riscos.length + " item(ns) no servidor (" + riscos.slice(0, 3).map(x => nomeChave(x.chave)).join(", ") + (riscos.length > 3 ? "…" : "") + "). Clique em \"Publicar para usuários\" para conferir e confirmar.");
+      if(!(await opc.confirmar(riscos, textoRiscos(riscos)))) throw cancelado();
+    }
+
+    // 0b) guarda uma cópia da versão atual do servidor no histórico (para poder voltar atrás)
+    let historicoOk = true;
+    try{
+      prog("Guardando a versão atual no histórico…");
+      const h = await cliente.rpc("salvar_historico", { forcar: !!opc.manual });
+      if(h.error) throw h.error;
+    }catch(e){ historicoOk = false; console.warn("[sync] histórico não salvo:", e); }
 
     // 1) envia em lotes
     let lote = [], tam = 0, enviadas = 0;
@@ -172,7 +227,7 @@
     await ok(cliente.from(TABELA).upsert([{ chave: META, parte: 0, valor: JSON.stringify(meta) }], { onConflict: "chave,parte" }));
     LS.setItem(CHAVE_VERSAO, versao);       // o próprio admin não precisa baixar o que acabou de publicar
     if(window.LS_FLUSH) await window.LS_FLUSH();
-    return meta;
+    return Object.assign({ historicoOk }, meta);
   }
 
   /* ---------- LEITOR: baixar ---------- */
@@ -295,6 +350,7 @@
     await passo("Linha em perfis", async () => { const d = await ok(cliente.from("perfis").select("email,papel").eq("email", email.toLowerCase()).maybeSingle()); return d ? JSON.stringify(d) : "NÃO ENCONTRADA (o e-mail precisa estar na tabela perfis)"; });
     await passo("eh_admin() no banco", async () => { const d = await cliente.rpc("eh_admin"); if(d.error) throw new Error(d.error.message); return String(d.data); });
     await passo("Tabela painel_dados", async () => { const d = await ok(cliente.from(TABELA).select("chave,parte").range(0, 999)); return d.length + " linha(s) visíveis"; });
+    await passo("Histórico de versões", async () => { const d = await cliente.rpc("listar_historico"); if(d.error) throw new Error(erroLegivel(d.error)); return (d.data || []).length + " versão(ões) guardada(s)"; });
     await passo("Versão publicada", async () => { const m = await lerMeta(); return m ? JSON.stringify(m) : "nada publicado"; });
     await passo("Versão aplicada aqui", async () => LS.getItem(CHAVE_VERSAO) || "nenhuma");
     await passo("Publicação automática", async () => alinhadoOk ? "ligada" : "desligada (clique em Publicar uma vez)");
@@ -326,6 +382,32 @@
     bx.title = "Traz tudo que já está publicado para cá, sem apagar nada do servidor. Faça isso ANTES de importar em um navegador novo.";
     bx.style.cssText = "display:none;width:100%;margin-top:6px;padding:8px 10px;border:1px solid #f0b429;background:rgba(240,180,41,.15);color:inherit;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer";
     rodape.insertBefore(bx, info);
+    const bh = document.createElement("button");
+    bh.type = "button"; bh.id = "syHist"; bh.textContent = "Restaurar versão anterior";
+    bh.title = "Volta o que os usuários veem para uma versão guardada antes de uma publicação";
+    bh.style.cssText = "display:block;width:100%;margin-top:6px;padding:7px 10px;border:1px solid rgba(255,255,255,.25);background:transparent;color:inherit;border-radius:8px;font-size:12px;cursor:pointer";
+    rodape.insertBefore(bh, info);
+    bh.addEventListener("click", async () => {
+      bh.disabled = true; bh.textContent = "Buscando versões…";
+      try{
+        const r = await cliente.rpc("listar_historico");
+        if(r.error) throw new Error(erroLegivel(r.error));
+        const v = r.data || [];
+        if(!v.length){ alert("Ainda não há versões guardadas. Elas são criadas automaticamente a cada publicação."); return; }
+        const lista = v.map((x, n) => (n + 1) + ") " + agoraTxt(x.criado_em) + " — " + x.chaves + " itens, " + kb(+x.tamanho)).join("\n");
+        const esc = prompt("Versões guardadas (a mais recente primeiro):\n\n" + lista + "\n\nDigite o NÚMERO da versão que quer restaurar:");
+        const n = parseInt(esc, 10);
+        if(!n || n < 1 || n > v.length) return;
+        if(!confirm("Restaurar a versão de " + agoraTxt(v[n - 1].criado_em) + "?\n\nOs usuários passam a ver essa versão. A versão atual também fica guardada no histórico, então dá para desfazer.")) return;
+        bh.textContent = "Restaurando…";
+        const rr = await cliente.rpc("restaurar_historico", { p_versao: v[n - 1].versao });
+        if(rr.error) throw new Error(erroLegivel(rr.error));
+        await atualizar();
+        alert("Versão restaurada. A página vai recarregar.");
+        location.reload();
+      }catch(err){ alert("Não foi possível restaurar: " + (err.message || err)); }
+      finally { bh.disabled = false; bh.textContent = "Restaurar versão anterior"; }
+    });
     bx.addEventListener("click", async () => {
       if(!confirm("Baixar o que está publicado e colocar neste navegador?\n\nO que estiver só aqui (e não publicado) será substituído pelo publicado.")) return;
       bx.disabled = true; bx.textContent = "Baixando…";
@@ -343,26 +425,20 @@
     })();
     b.addEventListener("click", async () => {
       if(!alinhadoOk){
-        /* navegador sem a versão publicada: publicar aqui APAGA dos usuários o que não existe neste navegador */
-        let perdas = [];
-        try{
-          const rem = await ok(cliente.from(TABELA).select("chave").eq("parte", 0).neq("chave", META));
-          const locais = Object.assign(coletarLocal(), await coletarBancos());
-          perdas = rem.map(r => r.chave).filter(k => !(k in locais));
-        }catch(e){}
-        const aviso = "ATENÇÃO: este navegador NÃO tem os dados que já estão publicados.\n\n" +
-          "Se você publicar daqui, os usuários vão perder " + (perdas.length ? perdas.length + " item(ns) que só existem no servidor" : "tudo que não estiver neste navegador") + ".\n\n" +
-          "O jeito seguro é clicar em \"Cancelar\" e usar o botão \"Baixar o publicado para este navegador\" ANTES de importar.\n\n" +
-          "Publicar mesmo assim e SUBSTITUIR tudo?";
-        if(!confirm(aviso)) return;
+        if(!confirm("ATENÇÃO: este navegador NÃO tem os dados que já estão publicados.\n\nPublicar daqui pode apagar dos usuários o que só existe no servidor.\n\nO jeito seguro é cancelar e usar o botão \"Baixar o publicado para este navegador\" ANTES de importar.\n\nContinuar mesmo assim?")) return;
       } else if(!confirm("Publicar os dados deste navegador para todos os usuários?")) return;
       b.disabled = true;
       try{
-        const m = await publicar(t => { b.textContent = t; });
+        if(window.LS_BACKUP){ b.textContent = "Gerando backup local…"; try{ window.LS_BACKUP.exportar(); }catch(e){ console.warn("[sync] backup local falhou", e); } }
+        const m = await publicar(t => { b.textContent = t; }, {
+          manual: true,
+          confirmar: async (rs, txt) => confirm("ATENÇÃO: esta publicação vai APAGAR ou REDUZIR dados que os usuários veem hoje:\n\n" + txt + "\n\n" + (alinhadoOk ? "" : "(Este navegador não tem os dados publicados.)\n\n") + "Publicar mesmo assim?")
+        });
         alinhadoOk = true; sujo = false;
         info.textContent = "Publicado agora. Daqui em diante as importações vão sozinhas.";
-        alert("Pronto! Os usuários verão estes dados na próxima vez que entrarem (ou em poucos minutos, se já estiverem com o painel aberto).");
-      }catch(err){ alert("Não foi possível publicar: " + (err.message || err)); }
+        alert("Pronto! Os usuários verão estes dados na próxima vez que entrarem (ou em poucos minutos, se já estiverem com o painel aberto)." +
+          (m.historicoOk === false ? "\n\nAtenção: o histórico de versões NÃO está instalado, então não dá para voltar atrás. Rode o arquivo supabase-historico.sql no Supabase." : ""));
+      }catch(err){ if(!err.cancelado) alert("Não foi possível publicar: " + (err.message || err)); }
       b.disabled = false; b.textContent = "Publicar para usuários";
     });
   }
