@@ -201,7 +201,7 @@
   /* devolve "atual" | "aplicado" | "vazio" */
   async function atualizar(){
     if(ocupado) return "atual";
-    ocupado = true;
+    ocupado = true; pausaSujo = true;
     try{
       let meta = await lerMeta();
       if(!meta) return "vazio";
@@ -228,7 +228,7 @@
       LS.setItem(CHAVE_VERSAO, meta.versao);
       if(window.LS_FLUSH) await window.LS_FLUSH();
       return "aplicado";
-    } finally { ocupado = false; }
+    } finally { ocupado = false; pausaSujo = false; }
   }
 
 
@@ -238,11 +238,11 @@
      publicada (evita um navegador vazio/antigo apagar o que os usuários veem). Se não estiver,
      use o botão "Publicar para usuários" uma vez para alinhar. */
   const ATRASO_AUTO = (typeof window !== "undefined" && window.SYNC_ATRASO_AUTO) || 12000;
-  let sujo = false, timerAuto = null, publicando = false, alinhadoOk = false;
+  let sujo = false, timerAuto = null, publicando = false, alinhadoOk = false, pausaSujo = false;
   const bancosNomes = BANCOS.map(b => b.nome);
   const info = t => { const el = $("syInfo"); if(el) el.textContent = t; };
   function marcarSujo(){
-    if(papel !== "admin") return;
+    if(papel !== "admin" || pausaSujo) return;
     sujo = true;
     if(!alinhadoOk){ info("Alterações só neste navegador. Clique em \"Publicar\" para enviar."); return; }
     info("Alterações pendentes… publicando já.");
@@ -281,7 +281,7 @@
     try{
       const m = await lerMeta();
       alinhadoOk = !m || LS.getItem(CHAVE_VERSAO) === m.versao;
-      if(!alinhadoOk) info("Este navegador não está alinhado com o publicado. Clique em \"Publicar\" para enviar o que você tem aqui.");
+      if(!alinhadoOk) info("Este navegador não tem os dados publicados. Clique em \"Baixar o publicado\" ANTES de importar, para não apagar nada.");
     }catch(e){ alinhadoOk = false; }
   }
 
@@ -321,12 +321,41 @@
     b.title = "Envia os dados importados neste navegador para todos os usuários verem";
     const info = document.createElement("div"); info.id = "syInfo";
     rodape.appendChild(b); rodape.appendChild(info);
+    const bx = document.createElement("button");
+    bx.type = "button"; bx.id = "syBaixar"; bx.textContent = "Baixar o publicado para este navegador";
+    bx.title = "Traz tudo que já está publicado para cá, sem apagar nada do servidor. Faça isso ANTES de importar em um navegador novo.";
+    bx.style.cssText = "display:none;width:100%;margin-top:6px;padding:8px 10px;border:1px solid #f0b429;background:rgba(240,180,41,.15);color:inherit;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer";
+    rodape.insertBefore(bx, info);
+    bx.addEventListener("click", async () => {
+      if(!confirm("Baixar o que está publicado e colocar neste navegador?\n\nO que estiver só aqui (e não publicado) será substituído pelo publicado.")) return;
+      bx.disabled = true; bx.textContent = "Baixando…";
+      try{
+        const r = await atualizar();
+        if(r === "vazio") alert("Ainda não há nada publicado.");
+        else { alert("Pronto! Os dados publicados agora estão neste navegador. A página vai recarregar."); location.reload(); }
+      }catch(err){ alert("Não foi possível baixar: " + (err.message || err)); }
+      bx.disabled = false; bx.textContent = "Baixar o publicado para este navegador";
+    });
     (async () => {
       await verAlinhamento();
+      bx.style.display = alinhadoOk ? "none" : "block";
       if(alinhadoOk){ try{ const m = await lerMeta(); info.textContent = m ? "Publicação automática ligada. Última: " + agoraTxt(m.versao) : "Publicação automática ligada. Nada publicado ainda."; }catch(e){} }
     })();
     b.addEventListener("click", async () => {
-      if(!confirm("Publicar os dados deste navegador para todos os usuários?\n\nIsso SUBSTITUI o que eles veem hoje pelo que está salvo aqui.")) return;
+      if(!alinhadoOk){
+        /* navegador sem a versão publicada: publicar aqui APAGA dos usuários o que não existe neste navegador */
+        let perdas = [];
+        try{
+          const rem = await ok(cliente.from(TABELA).select("chave").eq("parte", 0).neq("chave", META));
+          const locais = Object.assign(coletarLocal(), await coletarBancos());
+          perdas = rem.map(r => r.chave).filter(k => !(k in locais));
+        }catch(e){}
+        const aviso = "ATENÇÃO: este navegador NÃO tem os dados que já estão publicados.\n\n" +
+          "Se você publicar daqui, os usuários vão perder " + (perdas.length ? perdas.length + " item(ns) que só existem no servidor" : "tudo que não estiver neste navegador") + ".\n\n" +
+          "O jeito seguro é clicar em \"Cancelar\" e usar o botão \"Baixar o publicado para este navegador\" ANTES de importar.\n\n" +
+          "Publicar mesmo assim e SUBSTITUIR tudo?";
+        if(!confirm(aviso)) return;
+      } else if(!confirm("Publicar os dados deste navegador para todos os usuários?")) return;
       b.disabled = true;
       try{
         const m = await publicar(t => { b.textContent = t; });
