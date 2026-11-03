@@ -28,6 +28,7 @@
 
   /* ---------- papel do usuario (admin / leitor) ---------- */
   async function carregarPapel(email){
+    if(window.PAINEL_PRONTO) await window.PAINEL_PRONTO;     // os módulos (papeis.js, sync) carregam em paralelo
     let papel = "leitor";
     if(MODO !== "supabase") papel = "admin";             // demonstração: sem segurança, não esconde nada
     else{
@@ -38,7 +39,9 @@
     }
     if(window.definirPapel) window.definirPapel(papel);
     // sincronização: admin ganha o botão "Publicar"; leitor baixa os dados publicados
-    try{ if(window.SYNC_APOS_LOGIN) await window.SYNC_APOS_LOGIN(cliente, papel, email); }catch(e){ console.warn("[sync]", e); }
+    // NÃO espera: baixar os dados publicados pode levar vários segundos e deixava a tela de login "presa".
+    // A sincronização roda em segundo plano (se houver versão nova, o painel recarrega sozinho, como antes).
+    try{ if(window.SYNC_APOS_LOGIN) Promise.resolve(window.SYNC_APOS_LOGIN(cliente, papel, email)).catch(e => console.warn("[sync]", e)); }catch(e){ console.warn("[sync]", e); }
   }
 
   /* ---------- camada de autenticação (troca só aqui) ---------- */
@@ -56,6 +59,7 @@
       cliente = window.supabase.createClient(AUTH_CONFIG.supabaseUrl, AUTH_CONFIG.supabaseAnonKey);
       const { data } = await cliente.auth.getSession();
       usuario = data && data.session ? { email: data.session.user.email } : null;
+      window.AUTH_USUARIO = usuario;
       if(usuario) await carregarPapel(usuario.email);
       cliente.auth.onAuthStateChange((_ev, sessao) => {
         usuario = sessao ? { email: sessao.user.email } : null;
@@ -90,6 +94,7 @@
   async function sairAuth(){
     if(MODO === "supabase" && cliente){ try{ await cliente.auth.signOut(); }catch(e){} }
     LS.removeItem(KEY_DEMO);
+    try{ sessionStorage.removeItem("painel_lugar"); }catch(e){}
     usuario = null; window.AUTH_USUARIO = null;
     if(window.SYNC_APOS_SAIDA) window.SYNC_APOS_SAIDA();
     if(window.definirPapel) window.definirPapel("leitor");
@@ -231,11 +236,37 @@
     rodape.appendChild(b);
   }
 
-  // mostra o login já na abertura (antes de saber se há sessão) para o painel não aparecer por um instante
-  mostrar();
-  iniciar().then(() => {
-    if(usuario){ esconder(); if(window.mostrarHubAreas) window.mostrarHubAreas(); }   // já estava logado: segue direto para a escolha de área (redesenha com o e-mail e o botão Sair)
+  /* Abertura.
+     - Se o navegador JÁ tem uma sessão salva (o Supabase guarda no localStorage), não mostramos a tela de login
+       nem por um instante: o painel abre direto e a sessão é confirmada em segundo plano.
+     - Se não tem sessão, o login aparece imediatamente (sem esperar o resto do painel carregar). */
+  function sessaoSalvaProvavel(){
+    if(MODO !== "supabase") return false;
+    try{
+      const ref = new URL(AUTH_CONFIG.supabaseUrl).hostname.split(".")[0];
+      const o = JSON.parse(localStorage.getItem("sb-" + ref + "-auth-token") || "null");
+      return !!(o && o.refresh_token && o.user);
+    }catch(e){ return false; }
+  }
+  const soltarCobertura = () => { const c = document.getElementById("bootCover"); if(c) c.remove(); };
+
+  const otimista = sessaoSalvaProvavel();
+  if(!otimista){ mostrar(); soltarCobertura(); }
+
+  iniciar().then(async () => {
+    if(window.PAINEL_PRONTO) await window.PAINEL_PRONTO;
+    if(usuario){
+      esconder();
+      // já estava logado: volta para a tela onde estava (F5 não joga mais para o início); sem lugar salvo, mostra a escolha de área
+      let voltou = false;
+      try{ voltou = !!(window.restaurarLugar && window.restaurarLugar()); }catch(e){}
+      if(!voltou && window.mostrarHubAreas) window.mostrarHubAreas();
+    }else{
+      mostrar();
+    }
+    soltarCobertura();
   }).catch(err => {
+    mostrar(); soltarCobertura();
     msg((err && err.message) || "Falha ao iniciar o login.");
   });
 })();
