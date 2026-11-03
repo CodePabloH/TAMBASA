@@ -225,6 +225,30 @@
 
   window.mostrarHubAreas = mostrar;
 
+  /* ---- lembrar onde a pessoa estava (vale para F5 / recarregar; some ao fechar a aba ou sair) ---- */
+  const CHAVE_LUGAR = "painel_lugar";
+  function guardarLugar(){
+    try{
+      if(typeof areaAtual === "undefined" || !areaAtual || typeof abaAtual === "undefined" || !abaAtual) return;
+      sessionStorage.setItem(CHAVE_LUGAR, JSON.stringify({ area: areaAtual, tab: abaAtual }));
+    }catch(e){}
+  }
+  if(typeof window.switchTab === "function"){
+    const _switchTab = window.switchTab;
+    window.switchTab = function(){ const r = _switchTab.apply(this, arguments); guardarLugar(); return r; };
+  }
+  window.restaurarLugar = function(){
+    try{
+      const o = JSON.parse(sessionStorage.getItem(CHAVE_LUGAR) || "null");
+      if(!o || !AREAS.some(a => a.id === o.area) || !TABS.some(t => t.id === o.tab)) return false;
+      areaAtual = o.area;
+      renderNav();
+      switchTab(o.tab);
+      esconder();
+      return true;
+    }catch(e){ return false; }
+  };
+
   document.body.appendChild(hub);
   mostrar();
 })();
