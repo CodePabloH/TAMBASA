@@ -4556,15 +4556,25 @@ function attachExportPerfGeralEvents(data){
   const periodo = data.periodo || "";
 
   const btnGeral = document.getElementById("perfGeralExportBtn");
-  if(btnGeral) btnGeral.addEventListener("click", ()=>{
-    const painel = btnGeral.closest(".panel");
-    exportarTabelasExcel([{
-      nome: "Performance Geral",
-      titulo: "Performance Geral por Unidade" + (periodo ? " — " + periodo : ""),
-      subtitulo: "TEC E ARM MIGUEL BARTOLOMEU (C.) — CNPJ 17.359.233/0001-88",
-      tabela: document.getElementById("perfGeralTabela"),
-      rodape: painel.querySelector(".footer-note").textContent.trim()
-    }], `Performance_Geral_${dataParaArquivo()}.xlsx`);
+  if(btnGeral) btnGeral.addEventListener("click", async ()=>{
+    // O botão pode estar na barra de filtros (sem rodapé) ou no cabeçalho da tabela:
+    // por isso o painel/rodapé são buscados a partir da TABELA, e nunca assumimos que existem.
+    const tabela = document.getElementById("perfGeralTabela");
+    if(!tabela){ alert("Não há tabela para exportar com os filtros atuais."); return; }
+    const painel = tabela.closest(".panel");
+    const nota = painel && painel.querySelector(".footer-note");
+    try{
+      await exportarTabelasExcel([{
+        nome: "Performance Geral",
+        titulo: "Performance Geral por Unidade" + (periodo ? " — " + periodo : ""),
+        subtitulo: "TEC E ARM MIGUEL BARTOLOMEU (C.) — CNPJ 17.359.233/0001-88",
+        tabela,
+        rodape: nota ? nota.textContent.trim() : ""
+      }], `Performance_Geral_${dataParaArquivo()}.xlsx`);
+    }catch(err){
+      console.error("Exportar Performance Geral:", err);
+      alert("Não foi possível gerar o Excel: " + (err && err.message || err));
+    }
   });
 
   const btnFocais = document.getElementById("perfGeralExportFocaisBtn");
