@@ -3326,6 +3326,295 @@ function tabelaPerformanceGeralHTML(unidadesFiltradas, periodo, temVal, temRva){
   `;
 }
 
+/* ================= PERFORMANCE GERAL — sub-aba "Por Unidade" no layout do Performance Teste =================
+   Mesmo desenho do Performance Teste: cards de visão (Geral / Do Valle / Real Vale), painel de filtros,
+   medidor + cards laterais e tabela com as mesmas colunas. Os números continuam vindo da seção RESUMO
+   dos relatórios VAL/RVA importados acima (nenhuma regra de cálculo mudou).
+   Não existe "A definir (sem 012)" aqui porque o RESUMO não traz essa informação. */
+const PGU_SIS = { VAL: "Do Valle", RVA: "Real Vale" };
+const PGU_COLS = [
+  {id:"unidade",       label:"Unidade (Sigla)",    width:150},
+  {id:"entregue",      label:"Entregue",           width:104},
+  {id:"noprazo",       label:"No Prazo",           width:96},
+  {id:"foraprazo",     label:"Fora Do Prazo",      width:100},
+  {id:"cliente",       label:"Cliente",            width:92},
+  {id:"transp",        label:"Transportadora",     width:130},
+  {id:"sla",           label:"Performance",        width:108},
+  {id:"previstas",     label:"Entregas Previstas", width:112},
+  {id:"abertoatraso",  label:"Aberto Atrasado",    width:104},
+  {id:"abertonoprazo", label:"Aberto No Prazo",    width:104}
+];
+const PGU_FS_MIN = 11, PGU_FS_MAX = 26, PGU_FS_DEF = 15;
+const PGU_LS_KEY = "valle_pg_unidade_ui_v1";
+const PGU = (function(){
+  let salvo = {};
+  try{ salvo = JSON.parse(localStorage.getItem(PGU_LS_KEY) || "{}") || {}; }catch(e){ salvo = {}; }
+  return Object.assign({visao:"geral", sort:"padrao", busca:"", focal:"", perf:"todas", atraso:"todos", fs:PGU_FS_DEF, larg:{}}, salvo, {unidAberto:false, unidScroll:0});
+})();
+function pguSalvar(){
+  try{ localStorage.setItem(PGU_LS_KEY, JSON.stringify({visao:PGU.visao, sort:PGU.sort, busca:PGU.busca, focal:PGU.focal, perf:PGU.perf, atraso:PGU.atraso, fs:PGU.fs, larg:PGU.larg})); }catch(e){}
+}
+
+function pguFiltrar(lista){
+  const busca = (PGU.busca || "").trim().toUpperCase();
+  let siglasFocal = null;
+  if(PGU.focal){
+    const f = FOCAIS.find(x => x.id === PGU.focal);
+    siglasFocal = new Set(f ? f.unidades.map(u => u.sigla) : []);
+  }
+  return lista.filter(u => {
+    if(perfGeralUnidadesExcluidas.has(u.sigla)) return false;
+    if(busca && u.sigla.toUpperCase().indexOf(busca) === -1) return false;
+    if(siglasFocal && !siglasFocal.has(u.sigla)) return false;
+    if(PGU.perf === "abaixo" && !(u.sla !== null && u.sla !== undefined && u.sla < META_PERFORMANCE && u.entregue > 0)) return false;
+    if(PGU.perf === "meta" && !(u.sla !== null && u.sla !== undefined && u.sla >= META_PERFORMANCE)) return false;
+    if(PGU.perf === "sem" && u.entregue > 0) return false;
+    if(PGU.atraso === "fora" && !(u.foraDoPrazo > 0)) return false;
+    if(PGU.atraso === "cliente" && !(u.atrasCli > 0)) return false;
+    if(PGU.atraso === "transp" && !(u.atrasTrans > 0)) return false;
+    if(PGU.atraso === "aberto" && !(u.abertoAtrasado > 0)) return false;
+    return true;
+  });
+}
+function pguOrdenar(lista){
+  const l = lista.slice();
+  if(PGU.sort === "sla-desc") l.sort((a,b) => (b.sla ?? -1) - (a.sla ?? -1));
+  else if(PGU.sort === "sla-asc") l.sort((a,b) => (a.sla ?? 999) - (b.sla ?? 999));
+  else if(PGU.sort === "sigla") l.sort((a,b) => a.sigla.localeCompare(b.sigla));
+  else l.sort((a,b) => (b.exped||0) - (a.exped||0) || a.sigla.localeCompare(b.sigla));
+  return l;
+}
+function pguFiltrosAtivos(){
+  return (PGU.busca ? 1 : 0) + (PGU.focal ? 1 : 0) + (PGU.perf !== "todas" ? 1 : 0) + (PGU.atraso !== "todos" ? 1 : 0) + (perfGeralUnidadesExcluidas.size ? 1 : 0);
+}
+
+function performanceGeralLayoutTesteHTML(valData, rvaData, temVal, temRva, dataMesclada){
+  const fonteLista = {
+    VAL: temVal ? valData.unidades.map(u => calcularCamposPerformance(u)) : [],
+    RVA: temRva ? rvaData.unidades.map(u => calcularCamposPerformance(u)) : []
+  };
+  const listaDe = k => k === "geral" ? dataMesclada.unidades : fonteLista[k];
+  if(PGU.visao !== "geral" && !listaDe(PGU.visao).length) PGU.visao = "geral";
+  if(["padrao","sla-desc","sla-asc","sigla"].indexOf(PGU.sort) === -1) PGU.sort = "padrao";
+  const visao = PGU.visao;
+  const visaoNome = visao === "geral" ? "Geral (Do Valle + Real Vale)" : PGU_SIS[visao];
+
+  const todas = listaDe(visao);
+  const filtradas = pguFiltrar(todas);
+  const un = pguOrdenar(filtradas);
+  const t = computeTotais(filtradas);
+  const nFiltros = pguFiltrosAtivos();
+  const cards = [["geral", "Geral", computeTotais(pguFiltrar(dataMesclada.unidades))]];
+  ["VAL","RVA"].forEach(k => { if(fonteLista[k].length) cards.push([k, PGU_SIS[k], computeTotais(pguFiltrar(fonteLista[k]))]); });
+  const siglasTodas = Array.from(new Set(todas.map(x => x.sigla))).sort();
+  const selOpt = (cur, v, txt) => `<option value="${v}" ${cur === v ? "selected" : ""}>${txt}</option>`;
+
+  if(!un.length){
+    // sem nada a mostrar: mantém os filtros visíveis para o usuário poder limpar
+  }
+  const linhas = un.map(u => `
+    <tr id="pgu-row-${u.sigla}" title="${escHtml(u.destino || u.sigla)}${u.origens ? " — " + u.origens.join(" + ") : ""}">
+      <td class="perf-unidade">${escHtml(u.sigla)}</td>
+      <td class="perf-entregue">${u.entregue}</td>
+      <td class="perf-noprazo">${u.noPrazoEnt}</td>
+      <td class="perf-foraprazo">${u.foraDoPrazo}</td>
+      <td class="perf-cliente">${u.atrasCli}</td>
+      <td class="perf-transp">${u.atrasTrans}</td>
+      <td class="${slaClassGeral(u.sla)}">${fmtPct(u.sla)}</td>
+      <td class="perf-previstas">${u.exped}</td>
+      <td class="perf-abertoatraso">${u.abertoAtrasado || ""}</td>
+      <td class="perf-abertonoprazo">${u.abertoNoPrazo}</td>
+    </tr>`).join("");
+
+  return `
+    <div class="pt-visao">
+      <div class="pt-visao-tit">Visão</div>
+      ${cards.map(([k, nome, tt]) => `
+        <button type="button" class="pt-vcard ${visao === k ? "on" : ""} pt-v-${k}" data-pguvisao="${k}">
+          <span class="pt-vnome">${escHtml(nome)}${k !== "geral" ? ` <i>${k}</i>` : ""}</span>
+          <span class="pt-vpct ${slaKpiClass(tt.sla)}">${fmtPct(tt.sla)}</span>
+          <span class="pt-vsub">${fmtInt(tt.entregue)} entregues · ${fmtInt(tt.exped)} previstas</span>
+        </button>`).join("")}
+    </div>
+    <div class="panel pt-filtros-panel">
+      <div class="toolbar">
+        <span class="pt-filtros">
+          <label class="check-inline">Ordenar por:
+            <select class="small-select" id="pguSort">
+              ${selOpt(PGU.sort, "padrao", "Padrão (Entregas Previstas)")}
+              ${selOpt(PGU.sort, "sla-desc", "Performance — maior para menor")}
+              ${selOpt(PGU.sort, "sla-asc", "Performance — menor para maior")}
+              ${selOpt(PGU.sort, "sigla", "Sigla (A–Z)")}
+            </select>
+          </label>
+        </span>
+        <div class="toolbar-actions">
+          <button type="button" class="btn btn-ghost btn-sm" id="perfGeralExportBtn" title="Baixar esta tabela em Excel (.xlsx) com as mesmas cores">Exportar Excel</button>
+          <span class="perf-fs-ctrl" title="Tamanho dos números da tabela">
+            <button type="button" class="btn btn-ghost btn-sm" id="pguFsDown" aria-label="Diminuir números">A−</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="pguFsUp" aria-label="Aumentar números">A+</button>
+          </span>
+          <button type="button" class="btn btn-ghost btn-sm" id="pguResetCols" title="Restaurar as larguras originais das colunas">↺ Larguras</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="pguFull">Tela cheia</button>
+        </div>
+      </div>
+      <div class="pt-filtros2">
+        <label>Sistema <select class="small-select" id="pguSisFiltro">
+          ${selOpt(visao, "geral", "Geral (VAL + RVA)")}
+          ${fonteLista.VAL.length ? selOpt(visao, "VAL", "Do Valle (VAL)") : ""}
+          ${fonteLista.RVA.length ? selOpt(visao, "RVA", "Real Vale (RVA)") : ""}
+        </select></label>
+        <div class="pt-multi-wrap"><span class="pt-multi-lbl">Marcar unidades</span>
+          <details class="pt-multi" id="pguUnidMulti" ${PGU.unidAberto ? "open" : ""}>
+            <summary>${perfGeralUnidadesExcluidas.size ? (siglasTodas.filter(s => !perfGeralUnidadesExcluidas.has(s)).length + " marcada(s)") : "Todas as unidades"}</summary>
+            <div class="pt-multi-box">
+              <div class="pt-multi-acoes"><button type="button" class="link-btn" id="pguUnidTodas">Marcar todas</button><button type="button" class="link-btn" id="pguUnidNenhuma">Limpar</button></div>
+              <div class="pt-multi-lista" id="pguUnidLista">
+                ${siglasTodas.map(sg => `<label><input type="checkbox" value="${escHtml(sg)}" ${perfGeralUnidadesExcluidas.has(sg) ? "" : "checked"}> ${escHtml(sg)}</label>`).join("")}
+              </div>
+            </div>
+          </details></div>
+        <label>Unidade <input type="search" id="pguBusca" class="small-input" placeholder="sigla (ex.: GAN, ROT)" value="${escHtml(PGU.busca)}"></label>
+        <label>Focal <select class="small-select" id="pguFocal"><option value="">Todos</option>${FOCAIS.map(f => `<option value="${escHtml(f.id)}" ${PGU.focal === f.id ? "selected" : ""}>${escHtml(f.titulo)}</option>`).join("")}</select></label>
+        <label>Performance <select class="small-select" id="pguPerf">
+          ${selOpt(PGU.perf, "todas", "Todas")}
+          ${selOpt(PGU.perf, "abaixo", "Abaixo da meta (&lt; 98%)")}
+          ${selOpt(PGU.perf, "meta", "Meta atingida (≥ 98%)")}
+          ${selOpt(PGU.perf, "sem", "Sem entregas feitas")}
+        </select></label>
+        <label>Atrasos <select class="small-select" id="pguAtraso">
+          ${selOpt(PGU.atraso, "todos", "Todos")}
+          ${selOpt(PGU.atraso, "fora", "Com entrega fora do prazo")}
+          ${selOpt(PGU.atraso, "cliente", "Com atraso do cliente")}
+          ${selOpt(PGU.atraso, "transp", "Com atraso da transportadora")}
+          ${selOpt(PGU.atraso, "aberto", "Com aberto atrasado")}
+        </select></label>
+        <button type="button" class="btn btn-ghost btn-sm" id="pguLimparFiltros" ${nFiltros ? "" : "disabled"}>Limpar filtros${nFiltros ? " (" + nFiltros + ")" : ""}</button>
+        <span class="pt-conta">${filtradas.length} de ${todas.length} unidades</span>
+      </div>
+      <p class="col-resize-hint">Arraste a borda direita de uma coluna para ajustar a largura.</p>
+    </div>
+    <div class="perf-layout">
+      <div class="perf-side">
+        <div class="panel perf-gauge-panel">
+          <div class="gauge-label">Performance — ${escHtml(visao === "geral" ? "Geral" : PGU_SIS[visao])}</div>
+          ${gaugeSVG(t.sla)}
+          <div class="gauge-pct ${slaKpiClass(t.sla)}">${fmtPct(t.sla)}</div>
+          <div class="gauge-meta">Meta: 98%</div>
+        </div>
+        <div class="perf-stat perf-stat-navy"><div class="perf-stat-label">Entregue</div><div class="perf-stat-value">${fmtInt(t.entregue)}</div></div>
+        <div class="perf-stat perf-stat-green"><div class="perf-stat-label">Entregas no Prazo</div><div class="perf-stat-value">${fmtInt(t.noPrazoEnt)}</div></div>
+        <div class="perf-stat perf-stat-red"><div class="perf-stat-label">Entregas Fora do Prazo</div><div class="perf-stat-value">${fmtInt(t.foraDoPrazo)}</div></div>
+        <div class="perf-stat perf-stat-amber"><div class="perf-stat-label">Transportadora</div><div class="perf-stat-value">${fmtInt(t.atrasTrans)}</div></div>
+        <div class="perf-stat perf-stat-amber"><div class="perf-stat-label">Cliente</div><div class="perf-stat-value">${fmtInt(t.atrasCli)}</div></div>
+        <div class="perf-stat perf-stat-red"><div class="perf-stat-label">Aberto Atrasado</div><div class="perf-stat-value">${fmtInt(t.abertoAtrasado)}</div></div>
+      </div>
+      <div class="perf-main">
+        <div class="panel" id="pguTablePanel">
+          <div class="panel-header perf-header">
+            <div class="perf-header-org">Seção RESUMO · Unidade de destino</div>
+            <div class="perf-header-title">Performance Geral por Unidade — ${escHtml(visaoNome)}${dataMesclada.periodo ? " — " + escHtml(dataMesclada.periodo) : ""}</div>
+          </div>
+          <div class="table-wrap perf-table-wrap">
+            ${un.length ? `
+            <table class="perf-table perf-table-full" id="perfGeralTabela">
+              <colgroup>${PGU_COLS.map(c => `<col data-col="${c.id}">`).join("")}</colgroup>
+              <thead><tr>${PGU_COLS.map(c => `<th class="th-${c.id}" data-col="${c.id}">${c.label}<span class="col-resizer" data-col="${c.id}"></span></th>`).join("")}</tr></thead>
+              <tbody>${linhas}</tbody>
+              <tfoot>
+                <tr class="perf-total-row">
+                  <td>${visao === "geral" ? "TOTAL GERAL" : "TOTAL " + visao}</td><td>${t.entregue}</td><td>${t.noPrazoEnt}</td><td>${t.foraDoPrazo}</td><td>${t.atrasCli}</td><td>${t.atrasTrans}</td>
+                  <td>${fmtPct(t.sla)}</td><td>${t.exped}</td><td>${t.abertoAtrasado || ""}</td><td>${t.abertoNoPrazo}</td>
+                </tr>
+              </tfoot>
+            </table>` : `<div class="empty">Nenhuma unidade com os filtros escolhidos.</div>`}
+          </div>
+          <div class="footer-note">Performance = No Prazo ÷ (Entregue − Cliente) (igual ao SSW). Fora do Prazo = Cliente + Transportadora. Aberto = ainda sem baixa. ${filtradas.length} unidade(s) — extraído da seção RESUMO (última página) do relatório .sswweb importado (${[temVal ? "VAL" : null, temRva ? "RVA" : null].filter(Boolean).join(" + ")}).</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function ligarEventosPerfGeralLayoutTeste(){
+  const $ = id => document.getElementById(id);
+  const re = () => { pguSalvar(); renderPerformanceGeralDashboard(); };
+  document.querySelectorAll("[data-pguvisao]").forEach(b => b.addEventListener("click", () => { PGU.visao = b.dataset.pguvisao; re(); }));
+  if(!$("pguSort")) return;
+  $("pguSort").addEventListener("change", e => { PGU.sort = e.target.value; re(); });
+  $("pguSisFiltro").addEventListener("change", e => { PGU.visao = e.target.value; re(); });
+  $("pguFocal").addEventListener("change", e => { PGU.focal = e.target.value; re(); });
+  $("pguPerf").addEventListener("change", e => { PGU.perf = e.target.value; re(); });
+  $("pguAtraso").addEventListener("change", e => { PGU.atraso = e.target.value; re(); });
+  let tBusca = null;
+  $("pguBusca").addEventListener("input", e => {
+    PGU.busca = e.target.value; clearTimeout(tBusca);
+    tBusca = setTimeout(() => { re(); const b = $("pguBusca"); if(b){ b.focus(); b.setSelectionRange(b.value.length, b.value.length); } }, 250);
+  });
+  $("pguLimparFiltros").addEventListener("click", () => {
+    Object.assign(PGU, {busca:"", focal:"", perf:"todas", atraso:"todos"}); perfGeralUnidadesExcluidas.clear(); re();
+  });
+  const det = $("pguUnidMulti"), lista = $("pguUnidLista");
+  if(det && lista){
+    det.addEventListener("toggle", () => { PGU.unidAberto = det.open; });
+    lista.scrollTop = PGU.unidScroll || 0;
+    lista.querySelectorAll("input[type=checkbox]").forEach(cb => cb.addEventListener("change", () => {
+      PGU.unidScroll = lista.scrollTop;
+      if(cb.checked) perfGeralUnidadesExcluidas.delete(cb.value); else perfGeralUnidadesExcluidas.add(cb.value);
+      re();
+    }));
+    $("pguUnidTodas").addEventListener("click", () => { PGU.unidScroll = lista.scrollTop; perfGeralUnidadesExcluidas.clear(); re(); });
+    $("pguUnidNenhuma").addEventListener("click", () => { PGU.unidScroll = lista.scrollTop; lista.querySelectorAll("input").forEach(x => perfGeralUnidadesExcluidas.add(x.value)); re(); });
+  }
+  $("pguFull").addEventListener("click", () => toggleFullscreen("pguTablePanel"));
+  updateFullscreenBtnLabel("pguTablePanel", "pguFull");
+  $("pguFsDown").addEventListener("click", () => { PGU.fs = Math.max(PGU_FS_MIN, (Number(PGU.fs) || PGU_FS_DEF) - 1); pguSalvar(); pguAplicarFonte(); });
+  $("pguFsUp").addEventListener("click", () => { PGU.fs = Math.min(PGU_FS_MAX, (Number(PGU.fs) || PGU_FS_DEF) + 1); pguSalvar(); pguAplicarFonte(); });
+  $("pguResetCols").addEventListener("click", () => { PGU.larg = {}; pguSalvar(); pguAplicarLarguras(); });
+  pguAplicarFonte(); pguAplicarLarguras(); pguLigarResize();
+}
+["fullscreenchange","webkitfullscreenchange"].forEach(evt => {
+  document.addEventListener(evt, () => updateFullscreenBtnLabel("pguTablePanel", "pguFull"));
+});
+function pguAplicarFonte(){
+  const t = document.getElementById("perfGeralTabela"); if(!t) return;
+  const v = Number(PGU.fs);
+  t.style.setProperty("--perf-fs", ((v >= PGU_FS_MIN && v <= PGU_FS_MAX) ? v : PGU_FS_DEF) + "px");
+}
+function pguAplicarLarguras(){
+  const t = document.getElementById("perfGeralTabela"); if(!t) return;
+  const w = PGU.larg || {};
+  t.querySelectorAll("colgroup col[data-col]").forEach(col => {
+    const def = PGU_COLS.find(c => c.id === col.dataset.col);
+    col.style.width = (w[col.dataset.col] || (def ? def.width : 90)) + "px";
+  });
+  const total = PGU_COLS.reduce((s, c) => s + (w[c.id] || c.width), 0);
+  t.style.width = total + "px"; t.style.minWidth = total + "px";
+}
+function pguLigarResize(){
+  const t = document.getElementById("perfGeralTabela"); if(!t) return;
+  t.querySelectorAll(".col-resizer").forEach(h => {
+    h.addEventListener("mousedown", e => {
+      e.preventDefault(); e.stopPropagation();
+      const col = t.querySelector(`colgroup col[data-col="${h.dataset.col}"]`); if(!col) return;
+      const x0 = e.clientX, w0 = col.getBoundingClientRect().width;
+      document.body.style.userSelect = "none";
+      const mv = ev => {
+        col.style.width = Math.max(48, Math.round(w0 + ev.clientX - x0)) + "px";
+        const tot = Array.from(t.querySelectorAll("colgroup col")).reduce((s, c) => s + parseFloat(c.style.width || 0), 0);
+        t.style.width = tot + "px"; t.style.minWidth = tot + "px";
+      };
+      const up = () => {
+        document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", up);
+        document.body.style.userSelect = "";
+        const w = {};
+        t.querySelectorAll("colgroup col[data-col]").forEach(c => { w[c.dataset.col] = Math.round(parseFloat(c.style.width)); });
+        PGU.larg = w; pguSalvar();
+      };
+      document.addEventListener("mousemove", mv); document.addEventListener("mouseup", up);
+    });
+  });
+}
+
 /* ================= SAC 1, 3, 4 e 5 — importação "transportadora como pagadora" ================= */
 // Performance Geral = o Do Valle paga (mercadoria sai do Do Valle para as empresas).
 // Aqui a empresa é a pagadora (mercadoria vem da transportadora para o Do Valle entregar).
@@ -4086,13 +4375,9 @@ function renderPerformanceGeralDashboard(){
   dashWrap.innerHTML = dashboardPrincipalPerfGeralHTML(data);
 
   // ---- Sub-aba Por Unidade ----
-  const unidadesSelecionadas = data.unidades.filter(u => !perfGeralUnidadesExcluidas.has(u.sigla));
-  const unidadesParaTabela = ordenarUnidadesPerfGeral(unidadesSelecionadas);
-  unidadeWrap.innerHTML = `
-    ${filtroOrdenacaoPerformanceGeralHTML(data)}
-    ${tabelaPerformanceGeralHTML(unidadesParaTabela, data.periodo, temVal, temRva)}
-  `;
-  attachFiltroOrdenacaoPerformanceGeralEvents();
+  // Mesmo layout da aba "Performance Teste": cards de visão, filtros, medidor + cards laterais e tabela.
+  unidadeWrap.innerHTML = performanceGeralLayoutTesteHTML(valData, rvaData, temVal, temRva, data);
+  ligarEventosPerfGeralLayoutTeste();
 
   // ---- Sub-aba Por Focal ----
   if(perfGeralFocalAtivo !== "breno" && !FOCAIS.some(f => f.id === perfGeralFocalAtivo)) perfGeralFocalAtivo = "geral";
