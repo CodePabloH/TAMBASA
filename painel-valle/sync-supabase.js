@@ -24,6 +24,8 @@
   /* o que NÃO é publicado: controle interno e preferências de tela de cada pessoa */
   const IGNORAR = [/^__/, /^painel_auth/, /^painel_vo_tema$/, /^painel_nav_fechados$/, /^painel_dp_aba$/, /^sync_/, /^tambasa_receita_mes_sel$/];
   const sincroniza = k => !IGNORAR.some(rx => rx.test(k));
+  /* itens que podem ENCOLHER sem pausar a publicação automática (a importação substitui o anterior por desenho) */
+  const ENCOLHE_LIVRE = [/^tambasa_prev_ssw$/, /^tambasa_prev_ssw_anterior$/];
 
   /* Alguns módulos guardam dados grandes em bancos IndexedDB próprios (fora do LS):
      Performance (CTRCs), Receita/Filmagens e Análise gerencial. Também são publicados. */
@@ -177,7 +179,10 @@
     prog("Conferindo o que será alterado…");
     const tamLocal = {};
     linhas.forEach(l => { tamLocal[l.chave] = (tamLocal[l.chave] || 0) + l.valor.length; });
-    const riscos = calcularRiscos(await resumoServidor(), tamLocal);
+    let riscos = calcularRiscos(await resumoServidor(), tamLocal);
+    /* publicação AUTOMÁTICA: a planilha do SSW é substituída por inteiro a cada importação (por desenho),
+       então ela ficar menor não pausa a publicação. Apagar o item continua sendo risco. Manual sempre confirma. */
+    if(!opc.manual) riscos = riscos.filter(x => !(x.tipo === "encolhe" && ENCOLHE_LIVRE.some(rx => rx.test(x.chave))));
     if(riscos.length){
       if(!opc.manual || !opc.confirmar)
         throw new Error("PAUSADO: esta publicação apagaria ou reduziria " + riscos.length + " item(ns) no servidor (" + riscos.slice(0, 3).map(x => nomeChave(x.chave)).join(", ") + (riscos.length > 3 ? "…" : "") + "). Clique em \"Publicar para usuários\" para conferir e confirmar.");
@@ -402,6 +407,7 @@
         bh.textContent = "Restaurando…";
         const rr = await cliente.rpc("restaurar_historico", { p_versao: v[n - 1].versao });
         if(rr.error) throw new Error(erroLegivel(rr.error));
+        if(window.LS_BACKUP){ try{ window.LS_BACKUP.exportar(); await sleep(1200); }catch(e){ console.warn("[sync] backup local falhou", e); } }   // o que está só neste navegador será substituído
         await atualizar(true);
         alert("Versão restaurada. A página vai recarregar.");
         location.reload();
@@ -409,8 +415,28 @@
       finally { bh.disabled = false; bh.textContent = "Restaurar versão anterior"; }
     });
     bx.addEventListener("click", async () => {
-      if(!confirm("Baixar o que está publicado e colocar neste navegador?\n\nO que estiver só aqui (e não publicado) será substituído pelo publicado.\nO servidor e os usuários não são alterados.\n\nDica: exporte um backup antes (botão \"Backup dos dados\").")) return;
-      bx.disabled = true; bx.textContent = "Baixando…";
+      /* mostra o que existe SÓ aqui (ou é maior aqui) e seria substituído */
+      let perdas = [];
+      try{
+        const remoto = await resumoServidor();
+        const local = Object.assign(coletarLocal(), await coletarBancos());
+        Object.keys(local).forEach(k => {
+          if(k.startsWith(PREFIXO_IDB) && !/\[\s*[^\]\s]/.test(local[k])) return;     // banco local vazio: nada a perder
+          const t = local[k].length, r = remoto[k];
+          if(!r) perdas.push("• " + nomeChave(k) + " — existe só aqui (" + kb(t) + ")");
+          else if(r.tamanho != null && t > r.tamanho) perdas.push("• " + nomeChave(k) + " — aqui tem mais: " + kb(t) + " (publicado: " + kb(r.tamanho) + ")");
+        });
+      }catch(e){ console.warn("[sync] não consegui comparar antes de baixar:", e); }
+      const aviso = perdas.length
+        ? "ATENÇÃO: estes itens têm dados que NÃO estão publicados e serão SUBSTITUÍDOS:\n\n" + perdas.slice(0, 12).join("\n") + (perdas.length > 12 ? "\n• …e mais " + (perdas.length - 12) + " item(ns)" : "") + "\n\nUm arquivo de backup será baixado antes. Continuar?"
+        : "Baixar o que está publicado e colocar neste navegador?\n\nNão encontrei dados só deste navegador que seriam perdidos. Um arquivo de backup será baixado antes por segurança.\nO servidor e os usuários não são alterados.";
+      if(!confirm(aviso)) return;
+      bx.disabled = true; bx.textContent = "Gerando backup…";
+      if(window.LS_BACKUP){
+        try{ window.LS_BACKUP.exportar(); await sleep(1200); }
+        catch(e){ if(!confirm("Não consegui gerar o backup local. Continuar mesmo assim?\n\nOs dados só deste navegador serão perdidos.")){ bx.disabled = false; bx.textContent = "Baixar o publicado para este navegador"; return; } }
+      }
+      bx.textContent = "Baixando…";
       try{
         const r = await atualizar(true);
         if(r === "vazio") alert("Ainda não há nada publicado.");
