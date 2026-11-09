@@ -37,6 +37,9 @@
   const K_HASH = "__sync_hashes";
   const K_REMOTO = "__sync_remoto";   // assinatura (data|partes|tamanho) de cada item já aplicado neste navegador: permite baixar só o que mudou
   const PARALELO = 6;                 // itens baixados ao mesmo tempo
+  const K_AGENDA = "__sync_agenda";   // horário de publicação (só deste navegador, não é publicado)
+  const K_PEND = "__sync_pend_desde"; // desde quando há alterações ainda não publicadas
+  const TICK_MS = 20000;              // confere a agenda a cada 20 s
 
   /* bancos IndexedDB próprios (mesmos nomes/versões/stores dos módulos que os usam) */
   const BANCOS = [
@@ -58,9 +61,34 @@
   let sujo = false, tAuto = null, tPoll = null, ocupado = false, aplicando = false;
   let aviso = "", ultimoOk = "";
   let ui = null;
+  let tAgenda = null, tentadoT = 0;
 
   const LS0 = {};      // métodos originais do LS (para gravar sem acionar a publicação automática)
   const mlog = (nivel, msg, det) => { try{ if(window.MONITOR) window.MONITOR.log("sync", nivel, msg, det); }catch(e){} };   // alimenta a aba Monitor (admin)
+
+  /* ---------------- agenda de publicação (admin) ---------------- */
+  //AGENDA_INI
+  function lerAgenda(){
+    try{ const a = JSON.parse(lsGet(K_AGENDA) || "null"); if(a && (a.modo === "imediato" || a.modo === "agendado") && Array.isArray(a.horarios)) return a; }catch(e){}
+    return { modo: "agendado", horarios: ["12:00", "15:00", "18:00"] };
+  }
+  function minutosValidos(a){
+    return a.horarios.map(h => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(h).trim()); if(!m) return null; const H = +m[1], M = +m[2]; return (H > 23 || M > 59) ? null : H * 60 + M; })
+      .filter(x => x !== null).sort((x, y) => x - y).filter((x, i, v) => i === 0 || x !== v[i - 1]);
+  }
+  const hhmm = min => String(Math.floor(min / 60)).padStart(2, "0") + ":" + String(min % 60).padStart(2, "0");
+  function dataMin(base, min, dia){ const d = new Date(base); d.setDate(d.getDate() + dia); d.setHours(Math.floor(min / 60), min % 60, 0, 0); return d; }
+  function ultimoHorario(agora){        // horário de publicação mais recente que já passou
+    const mins = minutosValidos(lerAgenda()); let best = null;
+    [0, -1].forEach(dia => mins.forEach(m => { const d = dataMin(agora, m, dia); if(d <= agora && (!best || d > best)) best = d; }));
+    return best;
+  }
+  function proximoHorario(agora){       // próximo horário de publicação
+    const mins = minutosValidos(lerAgenda()); let best = null;
+    [0, 1].forEach(dia => mins.forEach(m => { const d = dataMin(agora, m, dia); if(d > agora && (!best || d < best)) best = d; }));
+    return best;
+  }
+  //AGENDA_FIM
 
   /* ---------------- utilidades ---------------- */
   const agoraHM = () => new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -268,7 +296,7 @@
       resumo.forEach((r, k) => { if(k.indexOf(PREF) === 0 && !itens.has(k)) remover.push(k); });
 
       if(!mudados.length && !remover.length && metaRem && metaRem.versao === versaoLocal()){
-        ultimoOk = "Em dia — " + agoraHM(); aviso = ""; mlog("info", "Nada a publicar: já está em dia"); return;
+        lsSetQuieto(K_PEND, ""); ultimoOk = "Em dia — " + agoraHM(); aviso = ""; mlog("info", "Nada a publicar: já está em dia"); return;
       }
 
       // cópia de segurança da versão que está publicada agora
@@ -319,6 +347,7 @@
 
       lsSetQuieto(K_VER, versao);
       lsSetQuieto(K_HASH, JSON.stringify(hashes));
+      lsSetQuieto(K_PEND, sujo ? new Date().toISOString() : "");   // mexeu durante a publicação: continua pendente
       await flush();
       ultimoOk = "Publicado às " + agoraHM(); aviso = "";
       mlog("ok", "Publicado: " + mudados.length + " item(ns) enviado(s), " + remover.length + " removido(s)", mudados.join(", "));
@@ -336,12 +365,27 @@
 
   function agendarAuto(){
     if(!ativo || papel !== "admin") return;
+    if(lerAgenda().modo === "agendado") return;      // modo agendado: quem publica é a agenda (verificarAgenda)
     clearTimeout(tAuto);
     tAuto = setTimeout(() => publicar(false), DEBOUNCE_MS);
+  }
+  const pendDesde = () => lsGet(K_PEND) || "";
+  function verificarAgenda(){
+    if(!ativo || papel !== "admin" || !cliente) return;
+    setStatus();
+    if(ocupado || lerAgenda().modo !== "agendado") return;
+    const desde = pendDesde(); if(!desde) return;
+    const T = ultimoHorario(new Date()); if(!T) return;
+    if(new Date(desde) >= T) return;                 // alteração feita depois do último horário: espera o próximo
+    if(tentadoT === T.getTime()) return;             // já tentou neste horário (não repete a cada 20 s)
+    tentadoT = T.getTime();
+    mlog("info", "Horário de publicação (" + hhmm(T.getHours() * 60 + T.getMinutes()) + "): publicando as alterações pendentes");
+    publicar(false);
   }
   function marcarSujo(){
     if(!ativo || papel !== "admin" || aplicando) return;
     sujo = true;
+    if(!pendDesde()) lsSetQuieto(K_PEND, new Date().toISOString());
     if(!ocupado) agendarAuto();
     setStatus();
   }
@@ -497,27 +541,44 @@
   #syncHistBox td,#syncHistBox th{padding:6px 8px;border-bottom:1px solid #e4e7eb;text-align:left;font-size:12.5px}
   #syncHistBox button{padding:6px 10px;border-radius:8px;border:1px solid #2e7d32;background:#2e7d32;color:#fff;font-size:12px;cursor:pointer}
   #syncHistBox button.sec{background:#fff;color:#2e7d32}
-  #syncHistBox .linha{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}`;
+  #syncHistBox .linha{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  #syncAgOv{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:none;align-items:center;justify-content:center;padding:16px}
+  #syncAgOv.on{display:flex}
+  #syncAgBox{background:#fff;color:#1f2933;border-radius:12px;max-width:480px;width:100%;padding:20px 22px;box-shadow:0 20px 60px rgba(0,0,0,.35);font:13px/1.45 system-ui,sans-serif}
+  #syncAgBox h3{margin:0 0 6px;font-size:17px}
+  #syncAgBox label{display:block;margin-top:10px;cursor:pointer}
+  #syncAgBox input[type=text]{width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid #c5ccd3;border-radius:8px;font-size:14px}
+  #syncAgBox .dica{margin-top:10px;font-size:12px;color:#5b6773}
+  #syncAgBox button{padding:7px 12px;border-radius:8px;border:1px solid #2e7d32;background:#2e7d32;color:#fff;font-size:12.5px;cursor:pointer}
+  #syncAgBox button.sec{background:#fff;color:#2e7d32}
+  #syncAgBox .linha{display:flex;gap:8px;margin-top:14px;justify-content:flex-end}`;
 
   function criarUI(){
     if(ui) return;
     const st = document.createElement("style"); st.textContent = css; document.head.appendChild(st);
     const box = document.createElement("div");
     box.id = "syncBox"; box.style.display = "none";
-    box.innerHTML = '<button type="button" id="syncPub">Publicar para usuários</button><button type="button" id="syncHist">Histórico / restaurar</button><div id="syncSt"></div>';
+    box.innerHTML = '<button type="button" id="syncPub">Publicar para usuários</button><button type="button" id="syncAg">Horário de publicação</button><button type="button" id="syncHist">Histórico / restaurar</button><div id="syncSt"></div>';
     const rodape = document.querySelector(".sidebar-footer");
     (rodape || document.body).appendChild(box);
     box.querySelector("#syncPub").addEventListener("click", () => publicar(true));
     box.querySelector("#syncHist").addEventListener("click", abrirHistorico);
-    ui = { box, st: box.querySelector("#syncSt"), pub: box.querySelector("#syncPub") };
+    box.querySelector("#syncAg").addEventListener("click", abrirAgenda);
+    ui = { box, st: box.querySelector("#syncSt"), pub: box.querySelector("#syncPub"), ag: box.querySelector("#syncAg") };
   }
   function setStatus(txt){
     if(!ui) return;
     ui.pub.disabled = ocupado;
+    if(ui.ag){ const a = lerAgenda(); ui.ag.textContent = a.modo === "agendado" ? "Horário de publicação: " + (minutosValidos(a).map(hhmm).join(", ") || "—") : "Horário de publicação: na hora"; }
     let t = txt;
     if(!t){
       if(ocupado) t = "Publicando…";
       else if(aviso) t = aviso;
+      else if(lerAgenda().modo === "agendado" && pendDesde()){
+        const T = ultimoHorario(new Date());
+        if(T && new Date(pendDesde()) < T) t = "Horário de publicação chegou — publicando em instantes…";
+        else{ const pr = proximoHorario(new Date()); t = "Alterações guardadas — serão publicadas " + (pr ? (pr.toDateString() === new Date().toDateString() ? "às " : "amanhã às ") + hhmm(pr.getHours() * 60 + pr.getMinutes()) : "no próximo horário") + ". Para enviar já, use “Publicar para usuários”."; }
+      }
       else if(sujo) t = "Alterações não publicadas — publicando em instantes…";
       else t = ultimoOk || "";
     }
@@ -540,6 +601,41 @@
     }
   }
   function fecharBanner(){ const b = document.getElementById("syncBanner"); if(b) b.remove(); }
+
+  function abrirAgenda(){
+    let ov = document.getElementById("syncAgOv");
+    if(!ov){
+      ov = document.createElement("div"); ov.id = "syncAgOv";
+      ov.innerHTML = '<div id="syncAgBox" role="dialog" aria-modal="true"><h3>Horário de publicação</h3>'
+        + '<div>Quando o que você importa ou altera passa a aparecer para os usuários.</div>'
+        + '<label><input type="radio" name="syncAgModo" value="agendado"> Só nos horários abaixo (tudo de uma vez)</label>'
+        + '<input type="text" id="syncAgH" placeholder="Ex.: 12:00, 18:00" autocomplete="off">'
+        + '<label><input type="radio" name="syncAgModo" value="imediato"> Logo depois de cada alteração (cerca de 4 segundos)</label>'
+        + '<div class="dica">O navegador do administrador precisa estar aberto no horário. Se estiver fechado, publica ao abrir depois do horário. O botão “Publicar para usuários” sempre envia na hora.</div>'
+        + '<div class="linha"><button type="button" class="sec" id="syncAgCancel">Cancelar</button><button type="button" id="syncAgSalvar">Salvar</button></div></div>';
+      document.body.appendChild(ov);
+      ov.addEventListener("click", e => { if(e.target === ov) ov.classList.remove("on"); });
+      ov.querySelector("#syncAgCancel").addEventListener("click", () => ov.classList.remove("on"));
+      ov.querySelector("#syncAgSalvar").addEventListener("click", async () => {
+        const modo = (ov.querySelector('input[name="syncAgModo"]:checked') || {}).value || "agendado";
+        const horarios = ov.querySelector("#syncAgH").value.split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
+        const a = { modo, horarios };
+        if(modo === "agendado" && !minutosValidos(a).length){ alert("Informe pelo menos um horário válido, como 12:00 (pode separar vários por vírgula)."); return; }
+        if(horarios.length && minutosValidos(a).length !== new Set(horarios.map(h => h.replace(/^0/, ""))).size && modo === "agendado"){ alert("Há um horário inválido. Use o formato 12:00."); return; }
+        lsSetQuieto(K_AGENDA, JSON.stringify({ modo, horarios: minutosValidos(a).map(hhmm) }));
+        await flush();
+        tentadoT = 0; clearTimeout(tAuto); tAuto = null;
+        mlog("info", "Horário de publicação alterado: " + (modo === "agendado" ? minutosValidos(a).map(hhmm).join(", ") : "na hora"));
+        ov.classList.remove("on");
+        if(modo === "imediato" && pendDesde()) { sujo = true; agendarAuto(); }
+        setStatus(); verificarAgenda();
+      });
+    }
+    const a = lerAgenda();
+    ov.querySelectorAll('input[name="syncAgModo"]').forEach(r => { r.checked = r.value === a.modo; });
+    ov.querySelector("#syncAgH").value = minutosValidos(a).map(hhmm).join(", ");
+    ov.classList.add("on");
+  }
 
   async function abrirHistorico(){
     let ov = document.getElementById("syncHistOv");
@@ -587,7 +683,7 @@
     ativo = true; sujo = false; aviso = "";
     mlog("info", "Sincronização iniciada (" + papel + ")");
     criarUI();
-    clearInterval(tPoll); tPoll = null;
+    clearInterval(tPoll); tPoll = null; clearInterval(tAgenda); tAgenda = null; tentadoT = 0;
     if(papel === "admin"){
       ui.box.style.display = "block";
       try{
@@ -597,6 +693,8 @@
         else aviso = "Este computador não está alinhado com a versão publicada. Publique pelo botão (pede confirmação) ou baixe os dados em Histórico.";
       }catch(e){ aviso = "Não consegui conferir a versão publicada: " + (e && e.message ? e.message : e); }
       setStatus();
+      tAgenda = setInterval(verificarAgenda, TICK_MS);
+      setTimeout(verificarAgenda, 3000);
     }else{
       ui.box.style.display = "none";
       await sincronizarLeitor("auto");
@@ -607,7 +705,7 @@
     mlog("info", "Sincronização encerrada (saiu da conta)");
     try{ if(window.MONITOR && window.MONITOR.desconectar) window.MONITOR.desconectar(); }catch(e){}
     ativo = false; papel = "leitor"; sujo = false;
-    clearTimeout(tAuto); clearInterval(tPoll); tAuto = tPoll = null;
+    clearTimeout(tAuto); clearInterval(tPoll); clearInterval(tAgenda); tAuto = tPoll = tAgenda = null;
     if(ui) ui.box.style.display = "none";
     fecharBanner();
   };
