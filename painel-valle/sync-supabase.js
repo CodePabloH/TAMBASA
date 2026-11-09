@@ -379,8 +379,12 @@
     if(new Date(desde) >= T) return;                 // alteração feita depois do último horário: espera o próximo
     if(tentadoT === T.getTime()) return;             // já tentou neste horário (não repete a cada 20 s)
     tentadoT = T.getTime();
-    mlog("info", "Horário de publicação (" + hhmm(T.getHours() * 60 + T.getMinutes()) + "): publicando as alterações pendentes");
-    publicar(false);
+    const hh = hhmm(T.getHours() * 60 + T.getMinutes());
+    mlog("info", "Horário de publicação (" + hh + "): publicando as alterações pendentes");
+    publicar(false).then(() => {
+      if(aviso) mostrarToast("Publicação das " + hh + " NÃO concluída: " + aviso);
+      else mostrarToast("Publicação das " + hh + " concluída. " + (ultimoOk || ""));
+    });
   }
   function marcarSujo(){
     if(!ativo || papel !== "admin" || aplicando) return;
@@ -725,7 +729,12 @@
     return { linhas, risco: analisarRisco(itens, resumo), metaRemota: meta, versaoLocal: versaoLocal() };
   }
   const estado = () => ({ ativo, papel, email, ocupado, sujo, aviso, ultimoOk, versaoLocal: versaoLocal(), autoAgendado: !!tAuto });
-  window.SYNC = { publicar: () => publicar(true), versaoLocal, estado, ping, diagnostico };
+  /* horário de publicação (para a aba Monitor) */
+  function agendaInfo(){
+    const a = lerAgenda(), pr = proximoHorario(new Date());
+    return { modo: a.modo, horarios: minutosValidos(a).map(hhmm), proximo: pr ? pr.getTime() : null, pendenteDesde: pendDesde() || null };
+  }
+  window.SYNC = { publicar: () => publicar(true), versaoLocal, estado, ping, diagnostico, agenda: agendaInfo, abrirAgenda };
 
   /* ---------------- detecção de alterações (para a publicação automática) ---------------- */
   (function ganchos(){
