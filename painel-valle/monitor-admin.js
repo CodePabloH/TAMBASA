@@ -535,6 +535,13 @@
 
   function estadoSync(){ try{ return window.SYNC && window.SYNC.estado ? window.SYNC.estado() : null; }catch(e){ return null; } }
 
+  function agendaMon(){ try{ return window.SYNC && window.SYNC.agenda ? window.SYNC.agenda() : null; }catch(e){ return null; } }
+  function proxTxt(ag){
+    if(!ag || !ag.proximo) return "no próximo horário";
+    const d = new Date(ag.proximo), hoje = new Date().toDateString() === d.toDateString();
+    return (hoje ? "às " : "amanhã às ") + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  }
+
   function cartoes(){
     const out = [];
     out.push(M.net().online ? card("ok", "Internet", "Online", "navegador conectado") : card("err", "Internet", "OFFLINE", "sem conexão"));
@@ -547,6 +554,7 @@
     if(!sy || !sy.ativo) out.push(card("off", "Sincronização", "Inativa", "faça login"));
     else if(sy.ocupado) out.push(card("warn", "Sincronização", "Publicando…", sy.papel));
     else if(sy.aviso) out.push(card("warn", "Sincronização", "Atenção", sy.aviso.slice(0, 70)));
+    else if(sy.papel === "admin" && agendaMon() && agendaMon().modo === "agendado" && agendaMon().pendenteDesde) out.push(card("warn", "Sincronização", "Pendente", "publica " + proxTxt(agendaMon())));
     else if(sy.sujo) out.push(card("warn", "Sincronização", "Pendente", "alterações a publicar"));
     else out.push(card("ok", "Sincronização", sy.papel === "admin" ? "Em dia" : "Leitor", sy.ultimoOk || ""));
     const st = S.site, tr = S.trace;
@@ -573,7 +581,7 @@
   }
 
   function painelSync(){
-    const sy = estadoSync(), p = S.ping, s = M.stats().supabase;
+    const sy = estadoSync(), p = S.ping, s = M.stats().supabase, ag = agendaMon();
     let h = "";
     if(!sy){ h += `<div class="empty">Sincronização ainda não iniciada (faça login).</div>`; }
     else{
@@ -581,7 +589,9 @@
       h += kv([
         ["Papel", esc(sy.papel) + " · " + esc(sy.email || "")],
         ["Estado", sy.ocupado ? "Publicando…" : (sy.aviso ? `<span class="mon-t-warn">${esc(sy.aviso)}</span>` : (sy.sujo ? "Alterações pendentes" : "Em dia"))],
-        ["Publicação automática", sy.papel === "admin" ? (sy.autoAgendado ? "agendada" : "aguardando alterações") : "— (só admin)"],
+        ["Publicação automática", sy.papel === "admin" ? (ag && ag.modo === "agendado" ? "por horário" : (sy.autoAgendado ? "agendada" : "aguardando alterações")) : "— (só admin)"],
+        ["Horário de publicação", sy.papel !== "admin" ? "— (só admin)" : (ag ? (ag.modo === "agendado" ? "<b>" + esc(ag.horarios.join(" · ")) + "</b>" : "na hora (após cada alteração)") : "—")],
+        ["Próxima publicação", sy.papel !== "admin" || !ag ? "—" : (ag.modo !== "agendado" ? "—" : esc(proxTxt(ag)) + (ag.pendenteDesde ? ' · <span class="mon-t-warn">há alterações pendentes desde ' + esc(new Date(ag.pendenteDesde).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })) + "</span>" : " · nada pendente"))],
         ["Última publicação OK", esc(sy.ultimoOk || "—")],
         ["Versão deste navegador", esc(sy.versaoLocal || "—")],
         ["Versão publicada", p && p.ok ? esc(p.versaoRemota || "—") + (p.por ? " · por " + esc(p.por) : "") : "—"],
@@ -593,7 +603,7 @@
     h += `<div class="mon-acoes">
       <button type="button" class="btn btn-ghost btn-sm" data-mon="ping">Verificar agora</button>
       <button type="button" class="btn btn-ghost btn-sm" data-mon="diag" ${S.diagCarregando ? "disabled" : ""}>${S.diagCarregando ? "Comparando…" : "Comparar local × publicado"}</button>
-      ${sy && sy.papel === "admin" ? `<button type="button" class="btn btn-ghost btn-sm" data-mon="pub">Publicar agora</button>` : ""}
+      ${sy && sy.papel === "admin" ? `<button type="button" class="btn btn-ghost btn-sm" data-mon="agenda">Horário de publicação</button><button type="button" class="btn btn-ghost btn-sm" data-mon="pub">Publicar agora</button>` : ""}
     </div>`;
     const d = S.diag;
     if(d){
@@ -978,6 +988,7 @@
         else if(a === "site") rodada(true);
         else if(a === "arq") testarArquivos();
         else if(a === "pub" && window.SYNC && window.SYNC.publicar) window.SYNC.publicar();
+        else if(a === "agenda" && window.SYNC && window.SYNC.abrirAgenda) window.SYNC.abrirAgenda();
         return;
       }
       const c = ev.target.closest("[data-f]"); if(c){ S.filtro = c.dataset.f; desenharLog(); return; }
