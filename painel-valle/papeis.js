@@ -125,11 +125,17 @@
   const SAC_LIBERADAS = new Set(["dashboard-rede", "performance-teste", "ocorrencias", "sacflow"]);
   const sacAtivo = () => window.AUTH_PAPEL === "sac";
   window.ehSac = sacAtivo;
-  window.abaBloqueada = id => sacAtivo() && !SAC_LIBERADAS.has(id);      // id de aba (ex.: "trocas", "@vo")
-  window.areaBloqueada = area => sacAtivo() && area !== "valle";          // "operacao", "tambasa" e "vo" (Visão da Operação)
+  /* ---------- perfil "só Tambasa" (por e-mail; no Supabase fica como 'leitor') ----------
+     Só vê a área Tambasa (Performance, Trocas, Boletos, Controle de Entregas, Entregas Previstas, Pacotes). O resto fica com cadeado. */
+  const EMAILS_SO_TAMBASA = new Set(["tambasa@transdovalle.com.br"]);
+  const TAMBASA_LIBERADAS = new Set(["performance", "trocas", "boletos", "entregas", "previstas", "pacotes"]);
+  const soTambasa = () => !ehAdmin() && EMAILS_SO_TAMBASA.has(String(window.AUTH_EMAIL || "").toLowerCase());
+  window.ehSoTambasa = soTambasa;
+  window.abaBloqueada = id => (sacAtivo() && !SAC_LIBERADAS.has(id)) || (soTambasa() && !TAMBASA_LIBERADAS.has(id));      // id de aba (ex.: "trocas", "@vo")
+  window.areaBloqueada = area => (sacAtivo() && area !== "valle") || (soTambasa() && area !== "tambasa");          // "operacao", "valle" e "vo" (Visão da Operação)
   window.ICONE_CADEADO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
-  st.textContent += "body.papel-sac #btnAbrirVO{opacity:.6;cursor:not-allowed}"
-    + "#btnAbrirVO .vo-cadeado{display:none;width:14px;height:14px;margin-left:6px;vertical-align:-2px}body.papel-sac #btnAbrirVO .vo-cadeado{display:inline-block}"
+  st.textContent += "body.papel-sac #btnAbrirVO,body.papel-tambasa #btnAbrirVO{opacity:.6;cursor:not-allowed}"
+    + "#btnAbrirVO .vo-cadeado{display:none;width:14px;height:14px;margin-left:6px;vertical-align:-2px}body.papel-sac #btnAbrirVO .vo-cadeado,body.papel-tambasa #btnAbrirVO .vo-cadeado{display:inline-block}"
     + "#tabsNav button.nav-lock{opacity:.55;cursor:not-allowed}#tabsNav button.nav-lock:hover{background:transparent}"
     + "#tabsNav .nav-cadeado{margin-left:auto;display:inline-flex;width:16px;height:16px;opacity:1;flex-shrink:0}#tabsNav .nav-cadeado svg{width:100%;height:100%}"
     + "#areaHub .ah-lock{position:relative;cursor:not-allowed;overflow:hidden}"
@@ -163,12 +169,18 @@
     window.AUTH_PAPEL = papel === "admin" ? "admin" : (papel === "sac" ? "sac" : "leitor");
     document.body.classList.toggle("papel-leitor", window.AUTH_PAPEL !== "admin");
     document.body.classList.toggle("papel-sac", sacAtivo());
+    document.body.classList.toggle("papel-tambasa", soTambasa());
     varrer();
     try{
       if(sacAtivo()){
         // se estiver numa tela bloqueada (ou na Visão da Operação), leva para a primeira liberada
         if(typeof fecharVisaoOperacao === "function" || window.fecharVisaoOperacao){ try{ window.fecharVisaoOperacao && window.fecharVisaoOperacao(); }catch(e){} }
         if(typeof switchTab === "function" && typeof abaAtual !== "undefined" && window.abaBloqueada(abaAtual)){ areaAtual = "valle"; switchTab("dashboard-rede"); }
+      }
+      if(soTambasa()){
+        // só Tambasa: se estiver em outra área/tela (ou na Visão da Operação), leva para a Tambasa
+        try{ window.fecharVisaoOperacao && window.fecharVisaoOperacao(); }catch(e){}
+        if(typeof switchTab === "function" && typeof abaAtual !== "undefined" && window.abaBloqueada(abaAtual)){ areaAtual = "tambasa"; switchTab("performance"); }
       }
       if(enxuto() && typeof switchTab === "function" && typeof abaAtual !== "undefined" && window.abaOculta(abaAtual)){ areaAtual = "operacao"; switchTab("dashboard-rede"); }
       const hub = document.getElementById("areaHub");
