@@ -35,6 +35,8 @@
   const POLL_MS = 30000;            // leitor: confere versão nova a cada 30 s
   const K_VER = "__sync_versao_local";
   const K_HASH = "__sync_hashes";
+  const K_REMOTO = "__sync_remoto";   // assinatura (data|partes|tamanho) de cada item já aplicado neste navegador: permite baixar só o que mudou
+  const PARALELO = 6;                 // itens baixados ao mesmo tempo
 
   /* bancos IndexedDB próprios (mesmos nomes/versões/stores dos módulos que os usam) */
   const BANCOS = [
@@ -151,17 +153,27 @@
   }
   async function lerResumo(){
     const mapa = new Map();
-    const r = await cliente.rpc("resumo_painel");
+    // v2 (supabase-sync-rapido.sql): traz também a data da última alteração de cada item
+    let r = await cliente.rpc("resumo_painel_v2");
     if(!r.error && Array.isArray(r.data)){
-      r.data.forEach(x => mapa.set(x.chave, { partes: Number(x.partes), tamanho: Number(x.tamanho) }));
+      r.data.forEach(x => mapa.set(x.chave, { partes: Number(x.partes), tamanho: Number(x.tamanho), atualizado: x.atualizado || null }));
       return mapa;
     }
-    // plano B (função não instalada): conta as partes direto da tabela
+    r = await cliente.rpc("resumo_painel");
+    if(!r.error && Array.isArray(r.data)){
+      r.data.forEach(x => mapa.set(x.chave, { partes: Number(x.partes), tamanho: Number(x.tamanho), atualizado: null }));
+      return mapa;
+    }
+    // plano B (funções não instaladas): conta as partes direto da tabela
     let de = 0;
     for(;;){
-      const q = await cliente.from("painel_dados").select("chave,parte").neq("chave", "__meta").order("chave").order("parte").range(de, de + 999);
+      const q = await cliente.from("painel_dados").select("chave,parte,atualizado_em").neq("chave", "__meta").order("chave").order("parte").range(de, de + 999);
       if(q.error) throw new Error("Não consegui listar os dados publicados: " + q.error.message);
-      (q.data || []).forEach(x => { const m = mapa.get(x.chave) || { partes: 0, tamanho: null }; m.partes++; mapa.set(x.chave, m); });
+      (q.data || []).forEach(x => {
+        const m = mapa.get(x.chave) || { partes: 0, tamanho: null, atualizado: null };
+        m.partes++; if(x.atualizado_em && (!m.atualizado || x.atualizado_em > m.atualizado)) m.atualizado = x.atualizado_em;
+        mapa.set(x.chave, m);
+      });
       if(!q.data || q.data.length < 1000) break;
       de += 1000;
     }
@@ -349,7 +361,24 @@
     return texto;
   }
 
-  async function baixarEAplicar(progresso){
+  const assinatura = r => (r.atualizado || "") + "|" + r.partes + "|" + r.tamanho;
+
+  /* Executa tarefas em paralelo (no máximo "n" por vez); falha se qualquer uma falhar. */
+  async function emParalelo(lista, n, fn){
+    let i = 0, erro = null;
+    const trabalhador = async () => {
+      while(!erro && i < lista.length){
+        const k = lista[i++];
+        try{ await fn(k); }catch(e){ erro = e; }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(n, lista.length) }, trabalhador));
+    if(erro) throw erro;
+  }
+
+  /* tudo = true: baixa todos os itens (botão "Baixar dados publicados para este computador").
+     tudo = false: baixa só o que mudou desde a última atualização deste navegador. */
+  async function baixarEAplicar(progresso, tudo){
     for(let tentativa = 0; tentativa < 3; tentativa++){
       const meta = await lerMeta();
       if(!meta) return { ok: false, motivo: "semDados" };
@@ -357,13 +386,27 @@
       const chaves = [...resumo.keys()].filter(k => k.indexOf(PREF) === 0);
       if(!chaves.length) return { ok: false, motivo: "formatoAntigo" };
 
+      let mapaLocal = {};
+      if(!tudo){ try{ mapaLocal = JSON.parse(lsGet(K_REMOTO) || "{}") || {}; }catch(e){ mapaLocal = {}; } }
+      const precisa = chaves.filter(k => {
+        const r = resumo.get(k);
+        if(tudo || !r.atualizado) return true;                       // sem data (SQL antigo): baixa tudo, como antes
+        if(mapaLocal[k] !== assinatura(r)) return true;               // mudou desde a última vez
+        if(k.indexOf(PREF + "ls:") === 0){                            // item do painel: confere se o que está aqui ainda é o publicado
+          const v = lsGet(k.slice((PREF + "ls:").length));
+          if(v === null || (r.tamanho !== null && tam(v) !== r.tamanho)) return true;
+        }
+        return false;
+      });
+
       const itens = new Map();
       let n = 0;
-      for(const k of chaves){
+      if(progresso) progresso(0, precisa.length);
+      await emParalelo(precisa, PARALELO, async k => {
         const r = resumo.get(k);
         itens.set(k, await baixarChave(k, r.partes, r.tamanho));
-        n++; if(progresso) progresso(n, chaves.length);
-      }
+        n++; if(progresso) progresso(n, precisa.length);
+      });
       const depois = await lerMeta();
       if(depois && depois.versao !== meta.versao) continue;     // publicaram no meio do download: refaz
 
@@ -378,15 +421,19 @@
           if(typeof idb[b.id] !== "string") continue;
           await gravarBanco(b, JSON.parse(idb[b.id]));
         }
+        // itens do painel que não existem mais na versão publicada saem daqui
+        const publicadosLs = new Set(chaves.filter(k => k.indexOf(PREF + "ls:") === 0).map(k => k.slice((PREF + "ls:").length)));
         const locais = [];
         for(let i = 0; i < window.LS.length; i++){ const k = window.LS.key(i); if(k !== null && publicavel(k)) locais.push(k); }
-        locais.forEach(k => { if(!ls.has(k)) LS0.rem(k); });
+        locais.forEach(k => { if(!publicadosLs.has(k)) LS0.rem(k); });
         ls.forEach((v, k) => { if(lsGet(k) !== v) LS0.set(k, v); });
+        const novoMapa = {}; chaves.forEach(k => { novoMapa[k] = assinatura(resumo.get(k)); });
+        lsSetQuieto(K_REMOTO, JSON.stringify(novoMapa));
         lsSetQuieto(K_VER, meta.versao);
         lsSetQuieto(K_HASH, "{}");
         await flush();
       }finally{ aplicando = false; }
-      return { ok: true, versao: meta.versao, itens: chaves.length };
+      return { ok: true, versao: meta.versao, itens: chaves.length, baixados: precisa.length };
     }
     throw new Error("Os dados mudaram várias vezes durante o download. Tente de novo.");
   }
@@ -410,8 +457,7 @@
       if(meta.versao === versaoLocal()){ aviso = ""; ultimoOk = "Dados em dia"; fecharBanner(); setStatus(); return; }
       mlog("info", "Versão nova publicada detectada" + (meta.por ? " (por " + meta.por + ")" : ""), meta.versao);
       if(modoAuto === "aviso"){ mostrarBanner(meta); return; }
-      telaAtualizando("Atualizando os dados publicados…");
-      const r = await baixarEAplicar((n, t) => telaAtualizando("Atualizando os dados publicados… (" + n + "/" + t + ")"));
+      const r = await baixarEAplicar((n, t) => { if(t > 0) telaAtualizando("Atualizando os dados publicados… (" + n + "/" + t + ")"); }, false);
       if(!r.ok){
         const c = document.getElementById("syncCobertura"); if(c) c.remove();
         aviso = r.motivo === "formatoAntigo"
@@ -419,7 +465,8 @@
           : "Ainda não há dados publicados pelo administrador.";
         mostrarToast(aviso); setStatus(); return;
       }
-      mlog("ok", "Dados publicados aplicados (" + r.itens + " itens); recarregando a página");
+      mlog("ok", "Dados publicados aplicados (" + r.baixados + " de " + r.itens + " itens baixados)");
+      if(!r.baixados){ aviso = ""; ultimoOk = "Dados em dia"; setStatus(); return; }   // nada mudou nos dados: não precisa recarregar
       telaAtualizando("Dados atualizados. Recarregando…");
       setTimeout(() => location.reload(), 300);
     }catch(err){
@@ -506,7 +553,7 @@
         if(!confirm("Isso SUBSTITUI os dados deste navegador pelos dados publicados.\n\nSe este computador tem dados que ainda não foram publicados, faça antes um “Backup dos dados”.\n\nContinuar?")) return;
         try{
           ov.classList.remove("on"); telaAtualizando("Baixando os dados publicados…");
-          const r = await baixarEAplicar((n, t) => telaAtualizando("Baixando os dados publicados… (" + n + "/" + t + ")"));
+          const r = await baixarEAplicar((n, t) => telaAtualizando("Baixando os dados publicados… (" + n + "/" + t + ")"), true);
           if(!r.ok){ document.getElementById("syncCobertura").remove(); alert("Não há dados no formato novo publicados ainda."); return; }
           telaAtualizando("Pronto. Recarregando…"); setTimeout(() => location.reload(), 300);
         }catch(e){ const c = document.getElementById("syncCobertura"); if(c) c.remove(); alert("Erro: " + (e && e.message ? e.message : e)); }
