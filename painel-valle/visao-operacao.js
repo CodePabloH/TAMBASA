@@ -1134,7 +1134,7 @@
           oc69:m.oc69, frete69:m.frete69, atr:m.atr, atr5:m.atr5, freteAtr:m.freteAtr, pend:m.pend, trocas:m.trocas, trocasAt:m.trocasAt, nivel:h.nivel, iss:h.iss.map(i => i.t)}; })};
     } finally { D = antes; }
   };
-  window.abrirVisaoOperacao = function(key, sub){ if(window.ehSac && window.ehSac()) return; abrir(); if(typeof key === "string" && D && D.M.has(key)) abrirSac(key, typeof sub === "string" ? sub : undefined); };
+  window.abrirVisaoOperacao = function(key, sub){ if((window.ehSac && window.ehSac()) || (window.ehSoTambasa && window.ehSoTambasa())) return; abrir(); if(typeof key === "string" && D && D.M.has(key)) abrirSac(key, typeof sub === "string" ? sub : undefined); };
   window.fecharVisaoOperacao = fechar;
   window.VISAO_OPERACAO_ICON = I.grid;
 })();
